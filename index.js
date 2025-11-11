@@ -15,6 +15,7 @@ app.disable('x-powered-by'); // Hide Express
 const allowedOrigins = [
   'http://localhost:4200',
   'http://localhost:4201',
+  'https://nmtv-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
