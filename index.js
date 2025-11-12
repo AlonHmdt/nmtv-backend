@@ -71,6 +71,10 @@ const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 const playlistCache = new Map(); // Map<playlistId, {videos: [], timestamp: number}>
 let bumpersCache = null; // Cache for bumpers (fetched once on startup)
 
+// Readiness state tracking
+let isDataReady = false;
+let dataLoadingStartTime = null;
+
 const CHANNELS = {
   rock: [
     "PLqKA0FE2hsOnyYVBZv2pcFyxNKPBaz2Nv",
@@ -588,6 +592,21 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'NMTV backend is running' });
 });
 
+// Readiness endpoint - checks if playlist data is loaded
+app.get('/api/ready', (req, res) => {
+  const cacheSize = playlistCache.size;
+  const bumpersLoaded = bumpersCache !== null && bumpersCache.length > 0;
+  const ready = isDataReady && cacheSize > 0 && bumpersLoaded;
+  
+  res.json({ 
+    ready,
+    cacheSize,
+    bumpersLoaded,
+    bumpersCount: bumpersCache?.length || 0,
+    loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0
+  });
+});
+
 // Apply strict rate limiting to validation endpoint (costs YouTube API quota)
 app.get('/api/validate-playlist/:playlistId', validationLimiter, async (req, res) => {
   const playlistId = req.params.playlistId;
@@ -623,6 +642,9 @@ app.get('/api/validate-playlist/:playlistId', validationLimiter, async (req, res
 // Pre-fetch all playlists on startup
 async function preFetchAllPlaylists() {
   console.log('🚀 Fetching ALL videos from all playlists...');
+  dataLoadingStartTime = Date.now();
+  isDataReady = false;
+  
   const allPlaylistsByChannel = [];
   
   // Collect all playlist IDs with their channel
@@ -650,13 +672,14 @@ async function preFetchAllPlaylists() {
   
   // Fetch and cache bumpers
   try {
-    console.log('\n🎬 Fetching and caching bumpers...');
     bumpersCache = await fetchBumpers();
-    console.log(`✅ Bumpers cached: ${bumpersCache.length} bumpers ready\n`);
   } catch (e) {
-    console.error('❌ Error fetching bumpers:', e.message);
     bumpersCache = []; // Set to empty array so app doesn't crash
   }
+  
+  // Mark data as ready
+  isDataReady = true;
+  const loadTime = ((Date.now() - dataLoadingStartTime) / 1000).toFixed(2);
 }
 
 // IMVDb API endpoint to get video release year
