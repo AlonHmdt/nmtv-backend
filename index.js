@@ -110,13 +110,21 @@ const CHANNELS = {
     "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j"
   ],
   "live": [
-    "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS"
+    "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS",
+    "PLXUBfJihF4_AhFBKu5UR2rhX_wKm5L9BO"
   ],
   "shows":[
-    "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh",
-    "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf",
-    "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk",
-    "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv"
+    "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh", // Celebrity deathmatch clips
+    "PLAHouvaC4CkONI9-1gWnn065uEnvVWAPQ", // Cribs full episodes
+    "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf", // Cribs clips
+    "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn", // Beavis and Butt-head clips
+    "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", // Punkd clips
+    "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", // Punkd clips 
+    "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", // Pimp my ride clips
+    "PLAHouvaC4CkOnubOV5uCev8pa7iFYYhmc", // Pimp my ride full episodes
+    "PLAHouvaC4CkPVACn_zKN1FY4praFWjMWt", // Pimp my ride full episodes
+    "PLAHouvaC4CkNGyLBrkQTaU93UumLo2vbK", // Pimp my ride full episodes
+    "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", // Interviews 
   ]
 };
 
@@ -125,7 +133,6 @@ const BUMPER_PLAYLISTS = [
   "PLnG7oFaM6TYqDLvZ_PBY79Pn68BFbv17w",
   "PLLHK2qXpOJlq07tC0I0aMZ8LbdsSj3jAF",
   "PLMl84_AytMHWf2ZHFbtpskMANEwKoPvZ5",
-  "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn"
 ];
 
 const MAX_BUMPER_DURATION = 90; // 1:30 in seconds
