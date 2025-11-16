@@ -77,23 +77,24 @@ let dataLoadingStartTime = null;
 
 const CHANNELS = {
   rock: [
-    "PLqKA0FE2hsOnyYVBZv2pcFyxNKPBaz2Nv",
-    "PL300C32DA374417AA",
-    "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk",
-    "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4",
-    "PL6Lt9p1lIRZ3m2X1Ur8ykG1XRGPFsTsbD"
+    "PLqKA0FE2hsOnyYVBZv2pcFyxNKPBaz2Nv", // Top Rock Of All Time
+    "PL300C32DA374417AA", // Classic Rock
+    "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", // Alternative Rock of 2000s
+    "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", // 90's Alternative Rock, Grunge, Post-Grunge 
+    "PL6Lt9p1lIRZ3m2X1Ur8ykG1XRGPFsTsbD" // Alternative rock of the 2010s 
   ],
   hiphop: [
-    "PLYC_eh_Ae3Dw0iZucKzKjLv9Zys4FbdHI",
-    "PLxo7H7n2_s1hwM1EdojpSGGl65fHaYAn7",
-    "PLdTuPwLzSCS5xNlwleM48YA8gJOBzrStV",
-    "PLn4GvABOzCQuZrM1YBvzlYVCkQpZkhXLS"
+    "PLYC_eh_Ae3Dw0iZucKzKjLv9Zys4FbdHI", // 90's Hip Hop
+    "PLxo7H7n2_s1hwM1EdojpSGGl65fHaYAn7", // 2000's Hip Hop
+    "PLdTuPwLzSCS5xNlwleM48YA8gJOBzrStV", // Golden Era Hip Hop & RnB
+    "PLn4GvABOzCQuZrM1YBvzlYVCkQpZkhXLS" // Top Hip-Hop and Rap Of All Time
   ],
   "2000s": [
-    "PLCh-xN1_B-eJazkwtVvYruDhfZyBCiMRn",
-    "PLId5xJ_xHV-nphbMh65l19EVyXZkSEVKr",
-    "PLKprw7268DO18sgw3yz4BA0GnpBl2SK0l",
-    "PLkESttpe0UDycidmhDo0PWqhGeohs6VfV"
+    "PLCh-xN1_B-eJazkwtVvYruDhfZyBCiMRn", // 2000's Music Videos
+    "PLId5xJ_xHV-nphbMh65l19EVyXZkSEVKr", // 2000's Hits
+    "PLkESttpe0UDycidmhDo0PWqhGeohs6VfV", // 2000's Alternative, Pop and Soft Rock
+    "PL9tY0BWXOZFu4vlBOzIOmvT6wjYb2jNiV", // 2000's Hits,
+    "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", // Alternative Rock of 2000s
   ],
   "1990s": [
     "PL1Mmsa-U48mea1oIN-Eus78giJANx4D9W",
