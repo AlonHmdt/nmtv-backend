@@ -124,7 +124,8 @@ const CHANNELS = {
 const BUMPER_PLAYLISTS = [
   "PLnG7oFaM6TYqDLvZ_PBY79Pn68BFbv17w",
   "PLLHK2qXpOJlq07tC0I0aMZ8LbdsSj3jAF",
-  "PLMl84_AytMHWf2ZHFbtpskMANEwKoPvZ5"
+  "PLMl84_AytMHWf2ZHFbtpskMANEwKoPvZ5",
+  "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn"
 ];
 
 const MAX_BUMPER_DURATION = 90; // 1:30 in seconds
