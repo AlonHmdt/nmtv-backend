@@ -111,6 +111,12 @@ const CHANNELS = {
   ],
   "live": [
     "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS"
+  ],
+  "shows":[
+    "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh",
+    "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf",
+    "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk",
+    "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv"
   ]
 };
 
