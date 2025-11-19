@@ -97,18 +97,18 @@ const CHANNELS = {
     "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", // Alternative Rock of 2000s
   ],
   "1990s": [
-    "PL1Mmsa-U48mea1oIN-Eus78giJANx4D9W",
-    "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4",
-    "PLNMTXgsQnLlCAYdQGh3sVAvun2hWZ_a6x",
-    "PLzRN-jh85ZxWAmGTRTmI54_wUPI1Ctfar",
-    "PLCQCtoOJpI_Dg1iO9xS2u24_2FtbyxCo2",
-    "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1"
+    "PL1Mmsa-U48mea1oIN-Eus78giJANx4D9W", // 90's Mix
+    "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", // 90's Alternative Rock, Grunge, Post-Grunge 
+    "PLNMTXgsQnLlCAYdQGh3sVAvun2hWZ_a6x", // 90's Love songs
+    "PLzRN-jh85ZxWAmGTRTmI54_wUPI1Ctfar", // 90's Rock
+    "PLCQCtoOJpI_Dg1iO9xS2u24_2FtbyxCo2", // Classic 1990's
+    "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1" // 90's Alternative
   ],
   "1980s": [
-    "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw",
-    "PLDHCLXs2vTkLK-Y7lCVSM5aC3wBYzAcyw",
-    "PLzRN-jh85ZxUe55BQvbT-7uhcYxUGlcED",
-    "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j"
+    "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw", // Best of the 80's
+    "PLDHCLXs2vTkLK-Y7lCVSM5aC3wBYzAcyw", // 80's Mix
+    "PLzRN-jh85ZxUe55BQvbT-7uhcYxUGlcED", // 80's Rock Anthems
+    "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j" // 80's Alternative
   ],
   "live": [
     "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS",
@@ -126,6 +126,7 @@ const CHANNELS = {
     "PLAHouvaC4CkPVACn_zKN1FY4praFWjMWt", // Pimp my ride full episodes
     "PLAHouvaC4CkNGyLBrkQTaU93UumLo2vbK", // Pimp my ride full episodes
     "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", // Interviews 
+    "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", // Punkd Full Episodes
   ]
 };
 
@@ -374,7 +375,7 @@ async function getAllChannelVideos(channel, customPlaylistIds = [], skipCustom =
   const officialPromises = officialPlaylists.map(pid => getPlaylistVideos(pid, null, null, channel));
   const officialResults = await Promise.all(officialPromises);
   let officialVideos = dedupe(officialResults.flat());
-  
+  shuffle(officialVideos);
   let videos;
   
   // If skipCustom flag is set or no custom playlists, use only official videos
@@ -505,9 +506,6 @@ function mixVideos(customPlaylistResults, officialVideos) {
   let uniqueCustom = weightedCustom.filter(v => !officialIds.has(v.id));
   let uniqueOfficial = officialVideos.filter(v => !customIds.has(v.id));
   
-  // Step 4: Shuffle official videos only (custom are already distributed)
-  shuffle(uniqueOfficial);
-  
   // Step 5: Calculate true 50/50 split
   const maxPerSource = Math.min(uniqueCustom.length, uniqueOfficial.length);
   uniqueCustom = uniqueCustom.slice(0, maxPerSource);
@@ -551,12 +549,6 @@ app.get('/api/channel/:id', async (req, res) => {
   
   try {
     const allVideos = await getAllChannelVideos(channel, customPlaylistIds, skipCustom, false); // Don't insert bumpers yet
-    
-    // Only shuffle if there are no custom playlists (official only)
-    // mixVideos() already handles shuffling when custom playlists are present
-    if (customPlaylistIds.length === 0 || skipCustom) {
-      shuffle(allVideos);
-    }
     
     // Slice to desired count, then insert bumpers
     const slicedVideos = allVideos.slice(0, 12);
