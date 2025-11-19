@@ -574,18 +574,26 @@ app.post('/api/channel/:id/next', async (req, res) => {
   
   try {
     const allVideos = await getAllChannelVideos(channel, customArray, false, false); // Don't insert bumpers yet
-    
+
     // Filter out excluded videos
-    const availableVideos = allVideos.filter(v => !excludeSet.has(v.id));
-    
+    let availableVideos = allVideos.filter(v => !excludeSet.has(v.id));
+
     // Only shuffle if there are no custom playlists (official only)
-    // mixVideos() already handles shuffling when custom playlists are present
     if (customArray.length === 0) {
       shuffle(availableVideos);
     }
-    
-    // Slice to desired count, then insert bumpers
-    const slicedVideos = availableVideos.slice(0, 12);
+
+    // Compensation logic: If not enough available videos, fill from allVideos
+    let slicedVideos = availableVideos.slice(0, 12);
+
+    if (slicedVideos.length < 12) {
+      // Find videos from allVideos not already in slicedVideos
+      const alreadyIncluded = new Set(slicedVideos.map(v => v.id));
+      const compensationVideos = allVideos.filter(v => !alreadyIncluded.has(v.id) && !excludeSet.has(v.id));
+      // Add up to (12 - slicedVideos.length) compensation videos
+      slicedVideos = slicedVideos.concat(compensationVideos.slice(0, 12 - slicedVideos.length));
+    }
+
     const videosWithBumpers = insertBumpers(slicedVideos, bumpersCache);
     
     res.json(videosWithBumpers);
