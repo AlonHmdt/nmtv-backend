@@ -116,17 +116,17 @@ const CHANNELS = {
   ],
   "shows":[
     "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh", // Celebrity deathmatch clips
-    "PLAHouvaC4CkONI9-1gWnn065uEnvVWAPQ", // Cribs full episodes
+    "PLBPLVvU_jvGvwo0Fev5kEyrjDm4oXkhxG", // Celebrity deathmatch clips
     "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf", // Cribs clips
+    "PL0exW-53ug6JHCQnY654-iSGBPRqkSEww", // Cribs clips
     "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn", // Beavis and Butt-head clips
     "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", // Punkd clips
     "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", // Punkd clips 
     "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", // Pimp my ride clips
-    "PLAHouvaC4CkOnubOV5uCev8pa7iFYYhmc", // Pimp my ride full episodes
-    "PLAHouvaC4CkPVACn_zKN1FY4praFWjMWt", // Pimp my ride full episodes
-    "PLAHouvaC4CkNGyLBrkQTaU93UumLo2vbK", // Pimp my ride full episodes
     "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", // Interviews 
     "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", // Punkd Full Episodes
+    "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA" // Jackass clips
+
   ]
 };
 
