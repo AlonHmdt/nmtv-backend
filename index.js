@@ -111,21 +111,21 @@ const CHANNELS = {
     { id: "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j", label: "Going Underground" }
   ],
   "live": [
-    { id: "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS", label: "Live Performances" },
-    { id: "PLXUBfJihF4_AhFBKu5UR2rhX_wKm5L9BO", label: "Live Concerts" }
+    { id: "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS", label: "" },
+    { id: "PLXUBfJihF4_AhFBKu5UR2rhX_wKm5L9BO", label: "" }
   ],
   "shows": [
-    { id: "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh", label: "Celebrity Deathmatch Clips" },
-    { id: "PLBPLVvU_jvGvwo0Fev5kEyrjDm4oXkhxG", label: "Celebrity Deathmatch" },
-    { id: "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf", label: "Cribs Clips" },
-    { id: "PL0exW-53ug6JHCQnY654-iSGBPRqkSEww", label: "Cribs" },
-    { id: "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn", label: "Beavis and Butt-head Clips" },
-    { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd Clips" },
-    { id: "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", label: "Punk'd" },
-    { id: "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", label: "Pimp My Ride Clips" },
+    { id: "PLjwvTaJGeSmQE2fDbYhkQY7zSB3k23cmh", label: "Celebrity Deathmatch - Nuggets" },
+    { id: "PLBPLVvU_jvGvwo0Fev5kEyrjDm4oXkhxG", label: "Celebrity Deathmatch - Nuggets" },
+    { id: "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf", label: "Cribs - Nuggets" },
+    { id: "PL0exW-53ug6JHCQnY654-iSGBPRqkSEww", label: "Cribs - Nuggets" },
+    { id: "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn", label: "Beavis and Butt-head - Nuggets" },
+    { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Nuggets" },
+    { id: "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", label: "Pimp My Ride - Nuggets" },
     { id: "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", label: "Interviews" },
-    { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd Full Episodes" },
-    { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass Clips" }
+    { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass Nuggets" },
+    { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Full Episodes" },
+    { id: "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", label: "Punk'd - Full Episodes" },
   ]
 };
 
