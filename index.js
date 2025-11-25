@@ -24,9 +24,15 @@ app.use(cors({
     // Allow requests with no origin (like mobile apps or curl)
     if (!origin) return callback(null, true);
 
+    // Check if origin is in the whitelist
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
-    } else {
+    }
+    // Allow all Vercel preview deployments (*.vercel.app)
+    else if (origin.endsWith('.vercel.app')) {
+      callback(null, true);
+    }
+    else {
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -79,8 +85,8 @@ const CHANNELS = {
   rock: [
     { id: "PLqKA0FE2hsOnyYVBZv2pcFyxNKPBaz2Nv", label: "Top Rock Of All Time" },
     { id: "PL300C32DA374417AA", label: "Classic Rock" },
-    { id: "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", label: "Alternative Rock of 2000s" },
-    { id: "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", label: "90's Alternative Rock, Grunge, Post-Grunge" },
+    { id: "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", label: "Alt Revival: 2000s Reloaded" },
+    { id: "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", label: "Flannel Frequency" },
     { id: "PL6Lt9p1lIRZ3m2X1Ur8ykG1XRGPFsTsbD", label: "Alternative rock of the 2010s" }
   ],
   hiphop: [
@@ -90,16 +96,15 @@ const CHANNELS = {
     { id: "PLn4GvABOzCQuZrM1YBvzlYVCkQpZkhXLS", label: "Top Hip-Hop and Rap Of All Time" }
   ],
   "2000s": [
-    { id: "PLCh-xN1_B-eJazkwtVvYruDhfZyBCiMRn", label: "2000's Music Videos" },
-    { id: "PLId5xJ_xHV-nphbMh65l19EVyXZkSEVKr", label: "2000's Hits" },
-    { id: "PLkESttpe0UDycidmhDo0PWqhGeohs6VfV", label: "2000's Alternative, Pop and Soft Rock" },
-    { id: "PL9tY0BWXOZFu4vlBOzIOmvT6wjYb2jNiV", label: "2000's Hits" },
-    { id: "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", label: "Alternative Rock of 2000s" }
+    { id: "PLCh-xN1_B-eJazkwtVvYruDhfZyBCiMRn", label: "Millennium Mix" },
+    { id: "PLId5xJ_xHV-nphbMh65l19EVyXZkSEVKr", label: "Y2K Anthems" },
+    { id: "PLkESttpe0UDycidmhDo0PWqhGeohs6VfV", label: "Shuffle Time" },
+    { id: "PL9tY0BWXOZFu4vlBOzIOmvT6wjYb2jNiV", label: "The 2000s Show" },
+    { id: "PL6Lt9p1lIRZ311J9ZHuzkR5A3xesae2pk", label: "Alt Revival: 2000s Reloaded" }
   ],
   "1990s": [
     { id: "PL1Mmsa-U48mea1oIN-Eus78giJANx4D9W", label: "90's Mix" },
-    { id: "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", label: "90's Alternative Rock, Grunge, Post-Grunge" },
-    { id: "PLNMTXgsQnLlCAYdQGh3sVAvun2hWZ_a6x", label: "90's Love songs" },
+    { id: "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", label: "Flannel Frequency" },
     { id: "PLzRN-jh85ZxWAmGTRTmI54_wUPI1Ctfar", label: "90's Rock" },
     { id: "PLCQCtoOJpI_Dg1iO9xS2u24_2FtbyxCo2", label: "Classic 1990's" },
     { id: "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1", label: "90's Alternative" }
