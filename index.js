@@ -105,10 +105,10 @@ const CHANNELS = {
     { id: "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1", label: "90's Alternative" }
   ],
   "1980s": [
-    { id: "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw", label: "Best of the 80's" },
-    { id: "PLDHCLXs2vTkLK-Y7lCVSM5aC3wBYzAcyw", label: "80's Mix" },
-    { id: "PLzRN-jh85ZxUe55BQvbT-7uhcYxUGlcED", label: "80's Rock Anthems" },
-    { id: "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j", label: "80's Alternative" }
+    { id: "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw", label: "Totally 80s!" },
+    { id: "PLDHCLXs2vTkLK-Y7lCVSM5aC3wBYzAcyw", label: "Neon Rewind" },
+    { id: "PLzRN-jh85ZxUe55BQvbT-7uhcYxUGlcED", label: "ROCK: 80s ARENA ANTHEMS" },
+    { id: "PLmXxqSJJq-yWTswOPWtZVTrs5ZAAjFB_j", label: "Going Underground" }
   ],
   "live": [
     { id: "PLcIRQEExiw7ZD9SyyNvazIzYI8SkBM5LS", label: "Live Performances" },
