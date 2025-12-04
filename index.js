@@ -884,26 +884,45 @@ async function preFetchAllPlaylists() {
   isDataReady = false;
 
   const allPlaylistsByChannel = [];
+  const fetchedPlaylistIds = new Set();
 
-  // Collect all playlist IDs with their channel
+  // Collect all unique playlist IDs with their channel
   for (const [channel, playlists] of Object.entries(CHANNELS)) {
-    playlists.forEach(p => allPlaylistsByChannel.push({ pid: p.id, channel }));
+    playlists.forEach(p => {
+      // Only add if we haven't seen this playlist ID before
+      if (!fetchedPlaylistIds.has(p.id)) {
+        allPlaylistsByChannel.push({ pid: p.id, channel });
+        fetchedPlaylistIds.add(p.id);
+      }
+    });
   }
 
-  console.log(`📋 Found ${allPlaylistsByChannel.length} playlists across all channels`);
+  console.log(`📋 Found ${allPlaylistsByChannel.length} unique playlists across all channels (deduplicated)`);
 
   let successCount = 0;
   let totalVideos = 0;
 
-  for (const { pid, channel } of allPlaylistsByChannel) {
+  // Parallel fetching with concurrency limit
+  const CONCURRENCY_LIMIT = 8; // Fetch 8 playlists at a time
+
+  // Helper function to process a single playlist
+  const fetchPlaylist = async ({ pid, channel }) => {
     try {
       const videos = await getPlaylistVideos(pid, null, null, channel);
-      totalVideos += videos.length;
       successCount++;
+      totalVideos += videos.length;
       console.log(`  ✓ [${successCount}/${allPlaylistsByChannel.length}] Cached ${videos.length} videos from ${pid} (${channel})`);
+      return { success: true, videos: videos.length };
     } catch (e) {
       console.error(`  ✗ Failed to fetch playlist ${pid}:`, e.message);
+      return { success: false, error: e.message };
     }
+  };
+
+  // Process playlists in batches with concurrency limit
+  for (let i = 0; i < allPlaylistsByChannel.length; i += CONCURRENCY_LIMIT) {
+    const batch = allPlaylistsByChannel.slice(i, i + CONCURRENCY_LIMIT);
+    await Promise.all(batch.map(fetchPlaylist));
   }
 
   console.log(`\n✅ Cache complete: ${successCount}/${allPlaylistsByChannel.length} playlists, ${totalVideos} total videos`);
