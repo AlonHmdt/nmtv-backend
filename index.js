@@ -108,7 +108,7 @@ const CHANNELS = {
     { id: "PLzRN-jh85ZxWAmGTRTmI54_wUPI1Ctfar", label: "90's Rock" },
     { id: "PLCQCtoOJpI_Dg1iO9xS2u24_2FtbyxCo2", label: "Classic 1990's" },
     { id: "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1", label: "90's Alternative" },
-    { id: "PL_NwZs4ruMxGXczs29ssrIy1blOJq", label: "RHYTHM IS A DANCER" }
+    { id: "PL_NwZs4ruMxGXczs29ssrIy1blOJq-BBw", label: "RHYTHM IS A DANCER" }
   ],
   "1980s": [
     { id: "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw", label: "Totally 80s!" },
@@ -129,7 +129,7 @@ const CHANNELS = {
     { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Nuggets" },
     { id: "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", label: "Pimp My Ride - Nuggets" },
     { id: "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", label: "Interviews" },
-    { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass Nuggets" },
+    { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass - Nuggets" },
     { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Full Episodes" },
     { id: "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", label: "Punk'd - Full Episodes" },
   ]
