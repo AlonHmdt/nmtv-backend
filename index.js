@@ -107,7 +107,8 @@ const CHANNELS = {
     { id: "PLD58ECddxRngHs9gZPQWOCAKwV1hTtYe4", label: "Flannel Frequency" },
     { id: "PLzRN-jh85ZxWAmGTRTmI54_wUPI1Ctfar", label: "90's Rock" },
     { id: "PLCQCtoOJpI_Dg1iO9xS2u24_2FtbyxCo2", label: "Classic 1990's" },
-    { id: "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1", label: "90's Alternative" }
+    { id: "PLkpn4UHlnIHnfh9Ye0ysC__1f29F2Bnv1", label: "90's Alternative" },
+    { id: "PL_NwZs4ruMxGXczs29ssrIy1blOJq", label: "RHYTHM IS A DANCER" }
   ],
   "1980s": [
     { id: "PLd9auH4JIHvupoMgW5YfOjqtj6Lih0MKw", label: "Totally 80s!" },
