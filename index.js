@@ -15,6 +15,7 @@ app.disable('x-powered-by'); // Hide Express
 const allowedOrigins = [
   'http://localhost:4200',
   'http://localhost:4201',
+  'http://localhost:61403',
   'https://nmtv-frontend.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
@@ -137,7 +138,7 @@ const CHANNELS = {
   "noa": [
     { id: "PLcIRQEExiw7aK3zIogUqYDQLi82XJvAiY", label: "30 Years of Noa" },
     { id: "PLcIRQEExiw7YQ3A0rJpFfinqpa_3eGBBm", label: "BerliNoa"},
-    { id: "PLcIRQEExiw7ZkC6x0bYJ1b2f6Yk1YF6yB", label: "Noa Is Budapesting" }
+    { id: "PLcIRQEExiw7YAWUtoixTBV5wAcLQzO8aa", label: "Noa Is Budapesting" }
   ]
 };
 
