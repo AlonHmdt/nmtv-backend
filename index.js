@@ -80,6 +80,7 @@ let bumpersCache = null; // Cache for bumpers (fetched once on startup)
 // Readiness state tracking
 let isDataReady = false;
 let dataLoadingStartTime = null;
+let isNoaChannelReady = false; // Track if NOA channel playlists are loaded
 
 const CHANNELS = {
   rock: [
@@ -132,6 +133,11 @@ const CHANNELS = {
     { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass - Nuggets" },
     { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Full Episodes" },
     { id: "PLXUBfJihF4_Bj6INx79to31FAo-Dm7R8m", label: "Punk'd - Full Episodes" },
+  ],
+  "noa": [
+    { id: "PLcIRQEExiw7aK3zIogUqYDQLi82XJvAiY", label: "30 Years of Noa" },
+    { id: "PLcIRQEExiw7YQ3A0rJpFfinqpa_3eGBBm", label: "BerliNoa"},
+    { id: "PLcIRQEExiw7ZkC6x0bYJ1b2f6Yk1YF6yB", label: "Noa Is Budapesting" }
   ]
 };
 
@@ -842,8 +848,55 @@ app.get('/api/ready', (req, res) => {
     cacheSize,
     bumpersLoaded,
     bumpersCount: bumpersCache?.length || 0,
-    loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0
+    loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0,
+    noaChannelReady: isNoaChannelReady
   });
+});
+
+// Load NOA channel endpoint - loads NOA channel playlists on demand
+app.post('/api/channel/noa/load', async (req, res) => {
+  // If already loaded, return immediately
+  if (isNoaChannelReady) {
+    return res.json({ success: true, message: 'NOA channel already loaded' });
+  }
+  
+  try {
+    const noaPlaylists = CHANNELS['noa'];
+    if (!noaPlaylists) {
+      return res.status(404).json({ error: 'NOA channel not configured' });
+    }
+
+    // Fetch all NOA playlists in parallel
+    const fetchPromises = noaPlaylists.map(p => 
+      fetchPlaylistItems(p.id, null, 'noa')
+        .then(videos => {
+          playlistCache.set(p.id, {
+            videos: videos,
+            timestamp: Date.now()
+          });
+          console.log(`  ✓ Cached ${videos.length} videos from playlist: ${p.label}`);
+          return videos.length;
+        })
+        .catch(error => {
+          console.error(`  ✗ Error fetching playlist ${p.label}:`, error.message);
+          return 0;
+        })
+    );
+
+    const results = await Promise.all(fetchPromises);
+    const totalVideos = results.reduce((sum, count) => sum + count, 0);
+
+    isNoaChannelReady = true;
+
+    res.json({ 
+      success: true, 
+      message: 'NOA channel loaded successfully',
+      totalVideos: totalVideos
+    });
+  } catch (error) {
+    console.error('Error loading NOA channel:', error);
+    res.status(500).json({ error: 'Failed to load NOA channel' });
+  }
 });
 
 // Apply strict rate limiting to validation endpoint (costs YouTube API quota)
@@ -887,8 +940,13 @@ async function preFetchAllPlaylists() {
   const allPlaylistsByChannel = [];
   const fetchedPlaylistIds = new Set();
 
-  // Collect all unique playlist IDs with their channel
+  // Collect all unique playlist IDs with their channel (excluding NOA - loaded on demand)
   for (const [channel, playlists] of Object.entries(CHANNELS)) {
+    // Skip NOA channel - it will be loaded on demand when user unlocks it
+    if (channel === 'noa') {
+      continue;
+    }
+    
     playlists.forEach(p => {
       // Only add if we haven't seen this playlist ID before
       if (!fetchedPlaylistIds.has(p.id)) {
