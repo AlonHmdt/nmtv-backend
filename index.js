@@ -184,6 +184,13 @@ async function fetchPlaylistItems(playlistId, maxVideos = null, channel = null) 
 
     try {
       const res = await axios.get(url);
+      
+      // Check if playlist is private or has no items
+      if (!res.data.items) {
+        console.warn(`  └─ Playlist ${playlistId} returned no items (may be private or deleted)`);
+        break;
+      }
+      
       const items = res.data.items || [];
 
       // Process videos from this page
@@ -221,7 +228,12 @@ async function fetchPlaylistItems(playlistId, maxVideos = null, channel = null) 
       }
 
     } catch (error) {
-      console.error(`  └─ Error fetching page ${pageCount + 1} of playlist ${playlistId}:`, error.message);
+      // Handle 404 or 403 errors for private/deleted playlists
+      if (error.response && (error.response.status === 404 || error.response.status === 403)) {
+        console.warn(`  └─ Playlist ${playlistId} is private, deleted, or inaccessible (${error.response.status})`);
+      } else {
+        console.error(`  └─ Error fetching page ${pageCount + 1} of playlist ${playlistId}:`, error.message);
+      }
       break; // Stop on error
     }
   } while (nextPageToken); // Continue while there's a next page
@@ -369,11 +381,14 @@ async function getPlaylistVideos(playlistId, maxVideos = null, timeout = null, c
       timeoutPromise
     ]);
 
+    // Cache even if empty (to avoid repeated failed fetches)
     playlistCache.set(playlistId, { videos, timestamp: now });
     return videos;
   } catch (error) {
     console.error(`Error fetching playlist ${playlistId}:`, error.message);
-    throw error;
+    // Cache empty result to avoid repeated attempts
+    playlistCache.set(playlistId, { videos: [], timestamp: now });
+    return []; // Return empty array instead of throwing
   }
 }
 
@@ -969,12 +984,19 @@ async function preFetchAllPlaylists() {
   const fetchPlaylist = async ({ pid, channel }) => {
     try {
       const videos = await getPlaylistVideos(pid, null, null, channel);
+      
+      // Check if playlist returned videos
+      if (!videos || videos.length === 0) {
+        console.warn(`  ⚠ Playlist ${pid} (${channel}) is empty or private - skipping`);
+        return { success: false, error: 'Empty or private playlist' };
+      }
+      
       successCount++;
       totalVideos += videos.length;
       console.log(`  ✓ [${successCount}/${allPlaylistsByChannel.length}] Cached ${videos.length} videos from ${pid} (${channel})`);
       return { success: true, videos: videos.length };
     } catch (e) {
-      console.error(`  ✗ Failed to fetch playlist ${pid}:`, e.message);
+      console.error(`  ✗ Failed to fetch playlist ${pid} (${channel}):`, e.message);
       return { success: false, error: e.message };
     }
   };
