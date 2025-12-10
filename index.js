@@ -138,7 +138,8 @@ const CHANNELS = {
   "noa": [
     { id: "PLcIRQEExiw7aK3zIogUqYDQLi82XJvAiY", label: "30 Years of Noa" },
     { id: "PLcIRQEExiw7YQ3A0rJpFfinqpa_3eGBBm", label: "BerliNoa"},
-    { id: "PLcIRQEExiw7YAWUtoixTBV5wAcLQzO8aa", label: "Noa Is Budapesting" }
+    { id: "PLcIRQEExiw7YAWUtoixTBV5wAcLQzO8aa", label: "Noa Is Budapesting" },
+    { id: "PLcIRQEExiw7aDBTUm4yY6qxkOFccpdzgr", label: "Noa's Winter" }
   ]
 };
 
