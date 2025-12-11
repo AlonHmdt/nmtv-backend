@@ -860,9 +860,18 @@ app.get('/api/ready', (req, res) => {
   const bumpersLoaded = bumpersCache !== null && bumpersCache.length > 0;
   const ready = isDataReady && cacheSize > 0 && bumpersLoaded;
 
+  // Calculate total unique playlists (excluding NOA which loads on demand)
+  const allPlaylistIds = new Set();
+  for (const [channel, playlists] of Object.entries(CHANNELS)) {
+    if (channel === 'noa') continue; // Skip NOA
+    playlists.forEach(p => allPlaylistIds.add(p.id));
+  }
+  const totalPlaylists = allPlaylistIds.size;
+
   res.json({
     ready,
     cacheSize,
+    totalPlaylists,
     bumpersLoaded,
     bumpersCount: bumpersCache?.length || 0,
     loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0,
