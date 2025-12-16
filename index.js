@@ -143,7 +143,7 @@ const CHANNELS = {
   ]
 };
 
-// Bumper/Ident playlists - short videos to play between songs
+// Bumper playlists - short videos to play between songs
 const BUMPER_PLAYLISTS = [
   { id: "PLnG7oFaM6TYqDLvZ_PBY79Pn68BFbv17w", label: "MTV Bumpers 1" },
   { id: "PLLHK2qXpOJlq07tC0I0aMZ8LbdsSj3jAF", label: "MTV Bumpers 2" },
