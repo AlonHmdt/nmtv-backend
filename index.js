@@ -16,7 +16,7 @@ const allowedOrigins = [
   'http://localhost:4200',
   'http://localhost:4201',
   'http://localhost:61403',
-  'https://nmtv-frontend.vercel.app',
+  'https://nmtv.vercel.app',
   process.env.FRONTEND_URL
 ].filter(Boolean);
 
