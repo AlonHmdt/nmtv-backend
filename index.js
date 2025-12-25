@@ -823,6 +823,8 @@ app.get('/api/channel/:id', async (req, res) => {
     // Get a programming block (random playlist selection)
     const block = await getChannelBlock(channel, customPlaylistIds, [], []);
 
+    // Cache for 5 minutes on CDN (reduces backend load)
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
     res.json(block);
   } catch (e) {
     console.error('Error:', e.message);
@@ -854,6 +856,7 @@ app.post('/api/channel/:id/next', async (req, res) => {
 });
 
 app.get('/health', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
   res.json({ status: 'OK', message: 'NMTV backend is running' });
 });
 
