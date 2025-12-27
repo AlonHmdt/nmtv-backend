@@ -490,10 +490,10 @@ module.exports = {
   getRandomBumpers,
   getAllBumpers,
   
-  // Admin
-  flagVideo,
-  unflagVideo,
-  deleteVideo,
-  addVideoToPlaylist,
-  removeVideoFromPlaylist
+  // Admin (commented out - requires authentication)
+  // flagVideo,
+  // unflagVideo,
+  // deleteVideo,
+  // addVideoToPlaylist,
+  // removeVideoFromPlaylist
 };
