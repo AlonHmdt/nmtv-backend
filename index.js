@@ -5,6 +5,10 @@ const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 require('dotenv').config();
 
+// Database service (new)
+const dbService = require('./db-service');
+const USE_DATABASE = process.env.USE_DATABASE === 'true';
+
 const app = express();
 
 // Security middleware
@@ -812,6 +816,70 @@ async function getLiveChannelBlock(customPlaylistIds = [], excludeVideoIds = [])
   };
 }
 
+// ============================================
+// DATABASE INTEGRATION WITH FALLBACK
+// ============================================
+
+/**
+ * Wrapper function to get channel block from DB or YouTube API
+ * @param {string} channel - Channel ID
+ * @param {string[]} customPlaylistIds - Custom playlist IDs (YouTube API only for now)
+ * @param {string[]} excludePlaylistIds - Exclude these playlists
+ * @param {string[]} excludeVideoIds - Exclude these videos
+ * @param {boolean} preferCustom - Prefer custom playlists
+ * @returns {Promise<VideoBlock>}
+ */
+async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excludePlaylistIds = [], excludeVideoIds = [], preferCustom = false) {
+  if (USE_DATABASE) {
+    try {
+      console.log(`[DB] Fetching block for channel: ${channel}`);
+      
+      // For now, ignore custom playlists in DB mode (can add later)
+      // Use DB to get programming block
+      const block = await dbService.getVideosForChannelBlock(
+        channel,
+        excludeVideoIds,
+        excludePlaylistIds
+      );
+      
+      // Insert bumpers
+      const bumpers = await dbService.getRandomBumpers(1);
+      const items = insertBumpersIntoBlockFromDB(block.items, bumpers);
+      
+      return {
+        ...block,
+        items
+      };
+    } catch (dbError) {
+      console.error('[DB] Error, falling back to YouTube API:', dbError.message);
+      // Fall through to YouTube API
+    }
+  }
+  
+  // Use existing YouTube API implementation
+  return await getChannelBlock(channel, customPlaylistIds, excludePlaylistIds, excludeVideoIds, preferCustom);
+}
+
+/**
+ * Helper to insert bumpers from DB into video list
+ */
+function insertBumpersIntoBlockFromDB(videos, bumpers) {
+  if (!bumpers || bumpers.length === 0) {
+    return videos;
+  }
+  
+  const result = [];
+  videos.forEach((video, index) => {
+    result.push(video);
+    // Insert bumper every 4 videos
+    if ((index + 1) % 4 === 0 && bumpers.length > 0) {
+      result.push(bumpers[0]); // Use first bumper
+    }
+  });
+  
+  return result;
+}
+
 app.get('/api/channel/:id', async (req, res) => {
   const channel = req.params.id;
   const customParam = req.query.custom || '';
@@ -820,8 +888,8 @@ app.get('/api/channel/:id', async (req, res) => {
   // Fetching programming block for channel
 
   try {
-    // Get a programming block (random playlist selection)
-    const block = await getChannelBlock(channel, customPlaylistIds, [], []);
+    // Get a programming block (DB or YouTube API with fallback)
+    const block = await getChannelBlockWithFallback(channel, customPlaylistIds, [], []);
 
     // Cache for 5 minutes on CDN (reduces backend load)
     res.set('Cache-Control', 'public, max-age=300, s-maxage=300');
@@ -845,8 +913,8 @@ app.post('/api/channel/:id/next', async (req, res) => {
   // Fetching next block
 
   try {
-    // Get next programming block (different playlist, excluding videos)
-    const block = await getChannelBlock(channel, customArray, excludePlaylistArray, excludeVideoArray, preferCustomFlag);
+    // Get next programming block (DB or YouTube API with fallback)
+    const block = await getChannelBlockWithFallback(channel, customArray, excludePlaylistArray, excludeVideoArray, preferCustomFlag);
 
     res.json(block);
   } catch (e) {
@@ -861,7 +929,31 @@ app.get('/health', (req, res) => {
 });
 
 // Readiness endpoint - checks if playlist data is loaded
-app.get('/api/ready', (req, res) => {
+app.get('/api/ready', async (req, res) => {
+  // Database mode: always ready (data already in DB)
+  if (USE_DATABASE) {
+    try {
+      await dbService.healthCheck();
+      return res.json({
+        ready: true,
+        mode: 'database',
+        cacheSize: 0,
+        totalPlaylists: 0,
+        bumpersLoaded: true,
+        bumpersCount: 0,
+        loadingTime: 0,
+        noaChannelReady: true
+      });
+    } catch (error) {
+      return res.json({
+        ready: false,
+        mode: 'database',
+        error: 'Database connection failed'
+      });
+    }
+  }
+
+  // YouTube API mode: check if playlists are cached
   const cacheSize = playlistCache.size;
   const bumpersLoaded = bumpersCache !== null && bumpersCache.length > 0;
   const ready = isDataReady && cacheSize > 0 && bumpersLoaded;
@@ -876,6 +968,7 @@ app.get('/api/ready', (req, res) => {
 
   res.json({
     ready,
+    mode: 'youtube_api',
     cacheSize,
     totalPlaylists,
     bumpersLoaded,
@@ -1086,15 +1179,31 @@ app.get('/api/video/year', async (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
   console.log('NMTV backend running on port ' + PORT);
+  console.log(`Mode: ${USE_DATABASE ? 'DATABASE' : 'YOUTUBE_API'}`);
+  
   if (!API_KEY) {
     console.warn('WARNING: YOUTUBE_API_KEY not set');
   }
 
-  // Pre-fetch playlists after server starts
-  try {
-    await preFetchAllPlaylists();
-    console.log('✓ All playlists cached and ready to serve');
-  } catch (e) {
-    console.error('Error during pre-fetch:', e.message);
+  // Initialize database connection pool if using database
+  if (USE_DATABASE) {
+    try {
+      await dbService.initializePool();
+      await dbService.healthCheck();
+      console.log('✓ Database connection established');
+    } catch (e) {
+      console.error('❌ Database connection failed:', e.message);
+      console.error('   Will fall back to YouTube API');
+    }
+  }
+
+  // Pre-fetch playlists after server starts (YouTube API mode only)
+  if (!USE_DATABASE) {
+    try {
+      await preFetchAllPlaylists();
+      console.log('✓ All playlists cached and ready to serve');
+    } catch (e) {
+      console.error('Error during pre-fetch:', e.message);
+    }
   }
 });
