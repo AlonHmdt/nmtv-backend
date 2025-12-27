@@ -928,6 +928,68 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'NMTV backend is running' });
 });
 
+// Flag a video (mark as is_flagged = true)
+app.post('/api/videos/:videoId/flag', async (req, res) => {
+  try {
+    const { videoId } = req.params;
+    
+    if (!videoId) {
+      return res.status(400).json({ error: 'Video ID is required' });
+    }
+
+    if (!USE_DATABASE) {
+      // In non-database mode, just return success (no-op)
+      return res.json({ 
+        success: true, 
+        message: 'Video flagged (memory only - not persisted)',
+        videoId 
+      });
+    }
+
+    await dbService.flagVideo(videoId);
+    
+    res.json({ 
+      success: true, 
+      message: 'Video flagged successfully',
+      videoId 
+    });
+  } catch (error) {
+    console.error('Error flagging video:', error);
+    res.status(500).json({ error: 'Failed to flag video' });
+  }
+});
+
+// Mark a video as unavailable (set is_available = false)
+app.post('/api/videos/:videoId/unavailable', async (req, res) => {
+  try {
+    if (!USE_DATABASE) {
+      // In non-database mode, just return success (no-op)
+      return res.json({ 
+        success: true, 
+        message: 'Video marked as unavailable (memory only)',
+        videoId: req.params.videoId 
+      });
+    }
+
+    const { videoId } = req.params;
+    
+    if (!videoId) {
+      return res.status(400).json({ error: 'Video ID is required' });
+    }
+
+    await dbService.markVideoUnavailable(videoId);
+    
+    res.json({ 
+      success: true, 
+      message: 'Video marked as unavailable',
+      videoId 
+    });
+  } catch (error) {
+    console.error('Error marking video unavailable:', error);
+    res.status(500).json({ error: 'Failed to mark video unavailable' });
+  }
+});
+
 // Readiness endpoint - checks if playlist data is loaded
 app.get('/api/ready', async (req, res) => {
   // Database mode: always ready (data already in DB)
