@@ -275,8 +275,12 @@ async function getVideosForChannelBlock(channelId, excludeVideoIds = [], exclude
     throw new Error(`No playlists available for channel: ${channelId}`);
   }
   
-  // Get 15 videos from this playlist
-  const result = await getVideosByPlaylistId(playlist.id, 15, excludeVideoIds);
+  // Determine block size based on channel type
+  // Shows channel: 3 videos, Music/Live channels: 12 videos
+  const blockSize = channelId === 'shows' ? 3 : 12;
+  
+  // Get videos from this playlist (bumpers will be added separately)
+  const result = await getVideosByPlaylistId(playlist.id, blockSize, excludeVideoIds);
   
   return {
     playlistLabel: playlist.name,

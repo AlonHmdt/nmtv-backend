@@ -842,9 +842,10 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
         excludePlaylistIds
       );
       
-      // Insert bumpers
-      const bumpers = await dbService.getRandomBumpers(1);
-      const items = insertBumpersIntoBlockFromDB(block.items, bumpers);
+      // Insert bumpers - fetch enough for variety (need ~3 per block)
+      const bumpers = await dbService.getRandomBumpers(10);
+      const bumperInterval = channel === 'shows' ? 3 : 4;
+      const items = insertBumpersIntoBlockFromDB(block.items, bumpers, bumperInterval);
       
       return {
         ...block,
@@ -863,17 +864,30 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
 /**
  * Helper to insert bumpers from DB into video list
  */
-function insertBumpersIntoBlockFromDB(videos, bumpers) {
+function insertBumpersIntoBlockFromDB(videos, bumpers, interval = 4) {
   if (!bumpers || bumpers.length === 0) {
     return videos;
   }
   
   const result = [];
+  let lastBumperIndex = -1;
+  
   videos.forEach((video, index) => {
     result.push(video);
-    // Insert bumper every 4 videos
-    if ((index + 1) % 4 === 0 && bumpers.length > 0) {
-      result.push(bumpers[0]); // Use first bumper
+    // Insert bumper at specified interval
+    if ((index + 1) % interval === 0) {
+      // Pick a random bumper, avoiding the last one if we have multiple bumpers
+      let bumperIndex;
+      if (bumpers.length === 1) {
+        bumperIndex = 0;
+      } else {
+        do {
+          bumperIndex = Math.floor(Math.random() * bumpers.length);
+        } while (bumperIndex === lastBumperIndex);
+      }
+      
+      result.push(bumpers[bumperIndex]);
+      lastBumperIndex = bumperIndex;
     }
   });
   
