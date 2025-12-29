@@ -623,15 +623,15 @@ async function createProgrammingBlock(playlistObj, channel, excludeVideoIds = []
   let blockSize, bumperInterval;
   if (channel === 'shows') {
     blockSize = 3;
-    bumperInterval = 3; // Bumper after 3 videos
+    bumperInterval = 'shows'; // Special pattern: [v1, BUMPER, v2, v3, BUMPER]
   } else if (channel === 'live') {
     // Live channel uses random mixing, not blocks
     blockSize = 12;
-    bumperInterval = 4;
+    bumperInterval = 4; // Position-based pattern
   } else {
     // Music channels: rock, hiphop, 2000s, 1990s, 1980s
     blockSize = 12;
-    bumperInterval = 4; // Bumper after every 4 videos
+    bumperInterval = 4; // Position-based pattern
   }
 
   // Take the required number of videos
@@ -668,11 +668,25 @@ function insertBumpersIntoBlock(videos, interval) {
   const shuffledBumpers = [...bumpersCache].sort(() => Math.random() - 0.5);
   let bumperIndex = 0;
 
+  // Special pattern for shows channel: [v1, BUMPER, v2, v3, BUMPER]
+  if (interval === 'shows') {
+    result.push(videos[0]); // First video
+    result.push(shuffledBumpers[bumperIndex % shuffledBumpers.length]);
+    bumperIndex++;
+    
+    result.push(videos[1]); // Second video
+    result.push(videos[2]); // Third video
+    result.push(shuffledBumpers[bumperIndex % shuffledBumpers.length]);
+    
+    return result;
+  }
+
+  // Pattern for music/live channels: [v1, v2, BUMPER, v3-v6, BUMPER, v7-v10, BUMPER, v11-v12, BUMPER]
   for (let i = 0; i < videos.length; i++) {
     result.push(videos[i]);
 
-    // Insert bumper after every 'interval' videos
-    if ((i + 1) % interval === 0) {
+    // Insert bumper after positions 2, 6, 10, 12 (indices 1, 5, 9, 11)
+    if (i === 1 || i === 5 || i === 9 || i === 11) {
       result.push(shuffledBumpers[bumperIndex % shuffledBumpers.length]);
       bumperIndex++;
     }
@@ -842,9 +856,9 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
         excludePlaylistIds
       );
       
-      // Insert bumpers - fetch enough for variety (need ~3 per block)
+      // Insert bumpers - fetch enough for variety (need ~4 per block)
       const bumpers = await dbService.getRandomBumpers(10);
-      const bumperInterval = channel === 'shows' ? 3 : 4;
+      const bumperInterval = channel === 'shows' ? 'shows' : 4;
       const items = insertBumpersIntoBlockFromDB(block.items, bumpers, bumperInterval);
       
       return {
@@ -872,22 +886,38 @@ function insertBumpersIntoBlockFromDB(videos, bumpers, interval = 4) {
   const result = [];
   let lastBumperIndex = -1;
   
+  // Helper to get a random bumper (avoiding consecutive duplicates)
+  const getRandomBumper = () => {
+    if (bumpers.length === 1) return bumpers[0];
+    
+    let bumperIndex;
+    do {
+      bumperIndex = Math.floor(Math.random() * bumpers.length);
+    } while (bumperIndex === lastBumperIndex);
+    
+    lastBumperIndex = bumperIndex;
+    return bumpers[bumperIndex];
+  };
+  
+  // Special pattern for shows channel: [v1, BUMPER, v2, v3, BUMPER]
+  if (interval === 'shows') {
+    result.push(videos[0]); // First video
+    result.push(getRandomBumper());
+    
+    result.push(videos[1]); // Second video
+    result.push(videos[2]); // Third video
+    result.push(getRandomBumper());
+    
+    return result;
+  }
+  
+  // Pattern for music/live channels: [v1, v2, BUMPER, v3-v6, BUMPER, v7-v10, BUMPER, v11-v12, BUMPER]
   videos.forEach((video, index) => {
     result.push(video);
-    // Insert bumper at specified interval
-    if ((index + 1) % interval === 0) {
-      // Pick a random bumper, avoiding the last one if we have multiple bumpers
-      let bumperIndex;
-      if (bumpers.length === 1) {
-        bumperIndex = 0;
-      } else {
-        do {
-          bumperIndex = Math.floor(Math.random() * bumpers.length);
-        } while (bumperIndex === lastBumperIndex);
-      }
-      
-      result.push(bumpers[bumperIndex]);
-      lastBumperIndex = bumperIndex;
+    
+    // Insert bumper after positions 2, 6, 10, 12 (indices 1, 5, 9, 11)
+    if (index === 1 || index === 5 || index === 9 || index === 11) {
+      result.push(getRandomBumper());
     }
   });
   
