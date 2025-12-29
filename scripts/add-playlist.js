@@ -66,11 +66,11 @@ if (args.length < 3) {
 
 const playlistUrl = args[0];
 const playlistName = args[1];
-const channelIds = args[2].split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+const channelIdsOrNames = args[2].split(',').map(id => id.trim()).filter(id => id.length > 0);
 const playlistDescription = args[3] || '';
 
-if (channelIds.length === 0) {
-  console.error('Error: Invalid channel IDs provided');
+if (channelIdsOrNames.length === 0) {
+  console.error('Error: Invalid channel IDs/names provided');
   showAvailableChannels().then(() => process.exit(1));
   return;
 }
@@ -214,6 +214,33 @@ async function getVideoDurations(videoIds) {
   return durations;
 }
 
+// Resolve channel IDs/names to numeric IDs
+async function resolveChannelIds(pool, channelIdsOrNames) {
+  const resolvedIds = [];
+  
+  for (const idOrName of channelIdsOrNames) {
+    // Try as numeric ID first
+    const numericId = parseInt(idOrName);
+    if (!isNaN(numericId)) {
+      const result = await pool.query('SELECT id, name FROM channels WHERE id = $1', [numericId]);
+      if (result.rows.length > 0) {
+        resolvedIds.push(numericId);
+        continue;
+      }
+    }
+    
+    // Try as channel name (case-insensitive)
+    const result = await pool.query('SELECT id, name FROM channels WHERE LOWER(name) = LOWER($1)', [idOrName]);
+    if (result.rows.length > 0) {
+      resolvedIds.push(result.rows[0].id);
+    } else {
+      console.warn(`\n⚠️  Channel "${idOrName}" not found, skipping...`);
+    }
+  }
+  
+  return resolvedIds;
+}
+
 // Create or get existing playlist
 async function createPlaylist(client, name, description) {
   // Check if playlist already exists
@@ -341,7 +368,18 @@ async function main() {
     const youtubePlaylistId = extractPlaylistId(playlistUrl);
     console.log(`YouTube Playlist ID: ${youtubePlaylistId}`);
     console.log(`Playlist Name: ${playlistName}`);
-    console.log(`Channel IDs: ${channelIds.join(', ')}`);
+    
+    // Resolve channel IDs/names to numeric IDs
+    console.log(`Resolving channels: ${channelIdsOrNames.join(', ')}`);
+    const channelIds = await resolveChannelIds(pool, channelIdsOrNames);
+    
+    if (channelIds.length === 0) {
+      console.error('\n❌ Error: No valid channels found');
+      await showAvailableChannels();
+      return;
+    }
+    
+    console.log(`Resolved Channel IDs: ${channelIds.join(', ')}`);
     if (playlistDescription) {
       console.log(`Description: ${playlistDescription}`);
     }

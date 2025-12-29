@@ -78,7 +78,8 @@ const CHANNELS = {
     { id: "PLcIRQEExiw7YAWUtoixTBV5wAcLQzO8aa", label: "Noa Is Budapesting" },
     { id: "PLcIRQEExiw7aDBTUm4yY6qxkOFccpdzgr", label: "Noa's Winter" },
     { id: "PLcIRQEExiw7ZuW3rOAqqkKZfnZovAdauM", label: "NOA-LON-DON" },
-    { id: "PLcIRQEExiw7aQ2RBhOhL3tDOvDKtNSGO_", label: "Chip-Chop Noa"}
+    { id: "PLcIRQEExiw7aQ2RBhOhL3tDOvDKtNSGO_", label: "Chip-Chop Noa"},
+    { id: "PLcIRQEExiw7a3CtZNE4o6SFV2OhQ7JFMI", label: "Noa's Munchies"}
   ]
 };
 
