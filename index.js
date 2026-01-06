@@ -133,7 +133,6 @@ const CHANNELS = {
     { id: "PLjwvTaJGeSmQfzhApDigzyCH0_Hu82fQf", label: "Cribs - Nuggets" },
     { id: "PL0exW-53ug6JHCQnY654-iSGBPRqkSEww", label: "Cribs - Nuggets" },
     { id: "PLA9_zFupTNzhk0O83A8dd1S9iKRcLh5dn", label: "Beavis and Butt-head - Nuggets" },
-    { id: "PLjwvTaJGeSmTRxXrtO7ufnX28B3a4ojYk", label: "Punk'd - Nuggets" },
     { id: "PL0exW-53ug6LfnmcO4MOPg07kZqjDmkZv", label: "Pimp My Ride - Nuggets" },
     { id: "PLXUBfJihF4_BtodhxajQzb5Irkev4Yl3v", label: "Interviews" },
     { id: "PLjwvTaJGeSmTR9x_r_wXZCrwRXiNjDmnA", label: "Jackass - Nuggets" },
