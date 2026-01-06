@@ -459,6 +459,103 @@ async function migrateBumpers(client) {
   console.log(`   Total bumpers: ${totalBumpers}`);
 }
 
+async function mergePlaylists(client, sourceId, targetId) {
+  console.log(`\n\n🔄 Merging duplicate playlists: ${sourceId} → ${targetId}\n`);
+
+  try {
+    // Begin transaction
+    await client.query('BEGIN');
+
+    // Get playlist details
+    const sourceResult = await client.query(
+      'SELECT id, name, description FROM playlists WHERE id = $1',
+      [sourceId]
+    );
+    const targetResult = await client.query(
+      'SELECT id, name, description FROM playlists WHERE id = $1',
+      [targetId]
+    );
+
+    if (sourceResult.rows.length === 0) {
+      console.log(`⚠️  Source playlist ${sourceId} not found, skipping...`);
+      return;
+    }
+    if (targetResult.rows.length === 0) {
+      console.log(`⚠️  Target playlist ${targetId} not found, skipping...`);
+      return;
+    }
+
+    const sourcePlaylist = sourceResult.rows[0];
+    const targetPlaylist = targetResult.rows[0];
+
+    console.log(`  📋 Source: "${sourcePlaylist.name}" (ID: ${sourceId})`);
+    console.log(`  📋 Target: "${targetPlaylist.name}" (ID: ${targetId})`);
+
+    // Get video count before merge
+    const sourceVideosResult = await client.query(
+      'SELECT COUNT(*) as count FROM playlist_videos WHERE playlist_id = $1',
+      [sourceId]
+    );
+    const targetVideosResult = await client.query(
+      'SELECT COUNT(*) as count FROM playlist_videos WHERE playlist_id = $1',
+      [targetId]
+    );
+
+    const sourceVideoCount = parseInt(sourceVideosResult.rows[0].count);
+    const targetVideoCount = parseInt(targetVideosResult.rows[0].count);
+
+    console.log(`  📊 Source: ${sourceVideoCount} videos | Target: ${targetVideoCount} videos`);
+
+    // Move videos from source to target (avoiding duplicates)
+    const moveResult = await client.query(`
+      INSERT INTO playlist_videos (playlist_id, video_id, position, created_at)
+      SELECT $1, video_id, position, created_at
+      FROM playlist_videos
+      WHERE playlist_id = $2
+      AND video_id NOT IN (
+        SELECT video_id FROM playlist_videos WHERE playlist_id = $1
+      )
+    `, [targetId, sourceId]);
+
+    const movedVideos = moveResult.rowCount;
+    console.log(`  ✅ Moved ${movedVideos} unique videos`);
+
+    // Move channel associations (avoiding duplicates)
+    const channelResult = await client.query(`
+      INSERT INTO channel_playlists (channel_id, playlist_id, created_at)
+      SELECT channel_id, $1, created_at
+      FROM channel_playlists
+      WHERE playlist_id = $2
+      AND channel_id NOT IN (
+        SELECT channel_id FROM channel_playlists WHERE playlist_id = $1
+      )
+    `, [targetId, sourceId]);
+
+    console.log(`  ✅ Moved ${channelResult.rowCount} channel associations`);
+
+    // Delete the source playlist (CASCADE will delete related records)
+    await client.query('DELETE FROM playlists WHERE id = $1', [sourceId]);
+    console.log(`  ✅ Deleted source playlist ${sourceId}`);
+
+    // Get final video count
+    const finalCountResult = await client.query(
+      'SELECT COUNT(*) as count FROM playlist_videos WHERE playlist_id = $1',
+      [targetId]
+    );
+    const finalCount = parseInt(finalCountResult.rows[0].count);
+
+    // Commit transaction
+    await client.query('COMMIT');
+
+    console.log(`\n✅ Merge complete! Target playlist now has ${finalCount} videos`);
+
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error(`     ❌ Error merging playlists: ${error.message}`);
+    throw error;
+  }
+}
+
 async function main() {
   console.log('🚀 Starting NMTV Database Migration\n');
   console.log('=' .repeat(60));
@@ -485,6 +582,10 @@ async function main() {
 
     // Migrate bumpers
     await migrateBumpers(client);
+
+    // Merge duplicate playlists (Celebrity Deathmatch - Nuggets)
+    // Playlists 25 and 26 are duplicates, merge 26 into 25
+    await mergePlaylists(client, 26, 25);
 
     console.log('\n' + '='.repeat(60));
     console.log('🎉 Migration completed successfully!');
