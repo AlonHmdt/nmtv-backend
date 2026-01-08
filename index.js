@@ -845,25 +845,125 @@ async function getLiveChannelBlock(customPlaylistIds = [], excludeVideoIds = [])
 async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excludePlaylistIds = [], excludeVideoIds = [], preferCustom = false) {
   if (USE_DATABASE) {
     try {
-      console.log(`[DB] Fetching block for channel: ${channel}`);
+      // Build list of available playlists (DB + custom)
+      const dbPlaylists = await dbService.getAllPlaylistsForChannel(channel);
       
-      // For now, ignore custom playlists in DB mode (can add later)
-      // Use DB to get programming block
-      const block = await dbService.getVideosForChannelBlock(
-        channel,
-        excludeVideoIds,
-        excludePlaylistIds
-      );
+      // Build custom playlist objects
+      const customPlaylists = (customPlaylistIds || [])
+        .filter(isValidPlaylistId)
+        .map(id => ({ id, isCustom: true }));
       
-      // Insert bumpers - fetch enough for variety (need ~4 per block)
+      // Combine all playlists
+      const allPlaylists = [...dbPlaylists, ...customPlaylists];
+      
+      if (allPlaylists.length === 0) {
+        throw new Error(`No playlists available for channel: ${channel}`);
+      }
+      
+      // Filter out excluded playlists
+      const excludeSet = new Set(excludePlaylistIds);
+      const availablePlaylists = allPlaylists.filter(p => !excludeSet.has(p.id.toString()));
+      
+      // Select a playlist using the same logic as non-DB mode
+      let selectedPlaylist;
+      const availableList = availablePlaylists.length > 0 ? availablePlaylists : allPlaylists;
+      
+      if (customPlaylists.length === 0) {
+        // No custom playlists, select randomly from DB playlists
+        selectedPlaylist = availableList[Math.floor(Math.random() * availableList.length)];
+      } else if (preferCustom) {
+        // Prefer custom playlists (zig-zag pattern)
+        const availableCustom = availableList.filter(p => p.isCustom);
+        if (availableCustom.length > 0) {
+          selectedPlaylist = availableCustom[Math.floor(Math.random() * availableCustom.length)];
+        } else {
+          const availableDB = availableList.filter(p => !p.isCustom);
+          selectedPlaylist = availableDB[Math.floor(Math.random() * availableDB.length)];
+        }
+      } else {
+        // Default: prefer DB playlists (zig-zag pattern)
+        const availableDB = availableList.filter(p => !p.isCustom);
+        if (availableDB.length > 0) {
+          selectedPlaylist = availableDB[Math.floor(Math.random() * availableDB.length)];
+        } else {
+          const availableCustom = availableList.filter(p => p.isCustom);
+          selectedPlaylist = availableCustom[Math.floor(Math.random() * availableCustom.length)];
+        }
+      }
+      
+      // Determine block size
+      const blockSize = channel === 'shows' ? 3 : 12;
+      let items;
+      let playlistLabel;
+      
+      // Fetch videos based on playlist type
+      if (selectedPlaylist.isCustom) {
+        // Custom playlist - fetch from YouTube API
+        const playlistName = await getPlaylistName(selectedPlaylist.id);
+        playlistLabel = playlistName || `Custom Playlist (${selectedPlaylist.id})`;
+        
+        const videos = await fetchPlaylistItems(selectedPlaylist.id, null, channel);
+        
+        // Filter out excluded videos
+        const excludeSet = new Set(excludeVideoIds);
+        let availableVideos = videos.filter(v => !excludeSet.has(v.id));
+        
+        if (availableVideos.length === 0) {
+          availableVideos = videos;
+        }
+        
+        // Shuffle and take block size
+        shuffle(availableVideos);
+        let blockVideos = availableVideos.slice(0, blockSize);
+        
+        // Repeat if needed
+        if (blockVideos.length < blockSize && availableVideos.length > 0) {
+          while (blockVideos.length < blockSize) {
+            const needed = blockSize - blockVideos.length;
+            blockVideos = blockVideos.concat(availableVideos.slice(0, needed));
+          }
+        }
+        
+        items = blockVideos.map(v => ({
+          id: v.id,
+          title: v.title,
+          artist: v.artist,
+          song: v.song,
+          isLimited: false,
+          isBumper: false
+        }));
+        
+      } else {
+        // DB playlist - fetch from database
+        const result = await dbService.getVideosByPlaylistId(
+          selectedPlaylist.id,
+          blockSize,
+          excludeVideoIds
+        );
+        
+        playlistLabel = selectedPlaylist.name;
+        
+        items = result.videos.map(v => ({
+          id: v.id,
+          title: v.title,
+          artist: v.artist,
+          song: v.song,
+          isLimited: v.is_limited,
+          isBumper: false
+        }));
+      }
+      
+      // Insert bumpers
       const bumpers = await dbService.getRandomBumpers(10);
       const bumperInterval = channel === 'shows' ? 'shows' : 4;
-      const items = insertBumpersIntoBlockFromDB(block.items, bumpers, bumperInterval);
+      const itemsWithBumpers = insertBumpersIntoBlockFromDB(items, bumpers, bumperInterval);
       
       return {
-        ...block,
-        items
+        playlistLabel,
+        playlistId: selectedPlaylist.id.toString(),
+        items: itemsWithBumpers
       };
+      
     } catch (dbError) {
       console.error('[DB] Error, falling back to YouTube API:', dbError.message);
       // Fall through to YouTube API
@@ -1015,17 +1115,19 @@ app.post('/api/videos/:videoId/unavailable', async (req, res) => {
     }
 
     const { videoId } = req.params;
+    const { errorCode } = req.body; // Get error code from request body
     
     if (!videoId) {
       return res.status(400).json({ error: 'Video ID is required' });
     }
 
-    await dbService.markVideoUnavailable(videoId);
+    await dbService.markVideoUnavailable(videoId, errorCode);
     
     res.json({ 
       success: true, 
       message: 'Video marked as unavailable',
-      videoId 
+      videoId,
+      errorCode: errorCode || null
     });
   } catch (error) {
     console.error('Error marking video unavailable:', error);

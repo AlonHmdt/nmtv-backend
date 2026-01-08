@@ -47,6 +47,7 @@ CREATE TABLE videos (
   is_flagged BOOLEAN DEFAULT FALSE,
   flag_reason TEXT,
   is_available BOOLEAN DEFAULT TRUE,
+  is_limited BOOLEAN DEFAULT FALSE,  -- True for location/region-restricted videos
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -80,6 +81,7 @@ CREATE TABLE bumpers (
 CREATE INDEX idx_videos_youtube_id ON videos(youtube_video_id);
 CREATE INDEX idx_videos_flagged ON videos(is_flagged);
 CREATE INDEX idx_videos_available ON videos(is_available);
+CREATE INDEX idx_videos_limited ON videos(is_limited);
 CREATE INDEX idx_bumpers_youtube_id ON bumpers(youtube_video_id);
 CREATE INDEX idx_bumpers_available ON bumpers(is_available);
 CREATE INDEX idx_playlist_videos_playlist ON playlist_videos(playlist_id);

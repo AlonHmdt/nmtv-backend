@@ -209,6 +209,25 @@ async function getRandomPlaylistForChannel(channelId, excludePlaylistIds = []) {
   return result.rows[0];
 }
 
+async function getAllPlaylistsForChannel(channelId) {
+  const client = getPool();
+  
+  const result = await client.query(`
+    SELECT p.id, p.name, p.description
+    FROM playlists p
+    JOIN channel_playlists cp ON p.id = cp.playlist_id
+    WHERE cp.channel_id = $1
+    ORDER BY p.id
+  `, [channelId]);
+  
+  return result.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    isCustom: false
+  }));
+}
+
 async function getPlaylistById(playlistId) {
   const client = getPool();
   const result = await client.query(
@@ -237,6 +256,7 @@ async function getVideosByPlaylistId(playlistId, limit = null, excludeVideoIds =
       v.artist,
       v.song,
       v.duration_seconds,
+      v.is_limited,
       p.name as playlist_name,
       p.id as playlist_id
     FROM videos v
@@ -290,6 +310,7 @@ async function getVideosForChannelBlock(channelId, excludeVideoIds = [], exclude
       title: v.title,
       artist: v.artist,
       song: v.song,
+      isLimited: v.is_limited,
       isBumper: false
     }))
   };
@@ -305,11 +326,15 @@ async function getVideoByYoutubeId(youtubeVideoId) {
   return result.rows[0] || null;
 }
 
-async function markVideoUnavailable(youtubeVideoId) {
+async function markVideoUnavailable(youtubeVideoId, errorCode = null) {
   const client = getPool();
+  
+  // Store error code in flag_reason if provided
+  const flagReason = errorCode ? `YouTube Error Code: ${errorCode}` : null;
+  
   await client.query(
-    'UPDATE videos SET is_available = false, updated_at = NOW() WHERE youtube_video_id = $1',
-    [youtubeVideoId]
+    'UPDATE videos SET is_available = false, flag_reason = $1, updated_at = NOW() WHERE youtube_video_id = $2',
+    [flagReason, youtubeVideoId]
   );
   
   // Clear related cache
@@ -482,6 +507,7 @@ module.exports = {
   // Playlists
   getPlaylistsForChannel,
   getRandomPlaylistForChannel,
+  getAllPlaylistsForChannel,
   getPlaylistById,
   
   // Videos
