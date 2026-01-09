@@ -262,7 +262,7 @@ async function getVideosByPlaylistId(playlistId, limit = null, excludeVideoIds =
     FROM videos v
     JOIN playlist_videos pv ON v.id = pv.video_id
     JOIN playlists p ON pv.playlist_id = p.id
-    WHERE p.id = $1 AND v.is_available = true AND v.is_flagged = false
+    WHERE p.id = $1 AND v.is_flagged = false
   `;
   
   const params = [playlistId];
