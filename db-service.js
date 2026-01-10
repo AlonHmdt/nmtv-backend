@@ -257,6 +257,7 @@ async function getVideosByPlaylistId(playlistId, limit = null, excludeVideoIds =
       v.song,
       v.duration_seconds,
       v.is_limited,
+      v.year,
       p.name as playlist_name,
       p.id as playlist_id
     FROM videos v
@@ -310,6 +311,7 @@ async function getVideosForChannelBlock(channelId, excludeVideoIds = [], exclude
       title: v.title,
       artist: v.artist,
       song: v.song,
+      year: v.year,
       isLimited: v.is_limited,
       isBumper: false
     }))
@@ -335,6 +337,18 @@ async function markVideoUnavailable(youtubeVideoId, errorCode = null) {
   await client.query(
     'UPDATE videos SET is_available = false, flag_reason = $1, updated_at = NOW() WHERE youtube_video_id = $2',
     [flagReason, youtubeVideoId]
+  );
+  
+  // Clear related cache
+  clearCache('videos:');
+}
+
+async function updateVideoYear(youtubeVideoId, year) {
+  const client = getPool();
+  
+  await client.query(
+    'UPDATE videos SET year = $1, updated_at = NOW() WHERE youtube_video_id = $2',
+    [year, youtubeVideoId]
   );
   
   // Clear related cache
@@ -515,6 +529,7 @@ module.exports = {
   getVideosForChannelBlock,
   getVideoByYoutubeId,
   markVideoUnavailable,
+  updateVideoYear,
   
   // Bumpers
   getRandomBumpers,

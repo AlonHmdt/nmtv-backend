@@ -1339,7 +1339,7 @@ async function preFetchAllPlaylists() {
 
 // IMVDb API endpoint to get video release year
 app.get('/api/video/year', async (req, res) => {
-  const { title } = req.query;
+  const { title, videoId } = req.query;
 
   if (!title) {
     return res.status(400).json({ error: 'Title parameter is required' });
@@ -1354,8 +1354,6 @@ app.get('/api/video/year', async (req, res) => {
     const encodedTitle = encodeURIComponent(title);
     const url = `http://imvdb.com/api/v1/search/videos?q=${encodedTitle}&limit=1`;
 
-    console.log(`🎬 Fetching year for: "${url}"`);
-
     const response = await axios.get(url, {
       headers: {
         'IMVDB-APP-KEY': IMVDB_API_KEY
@@ -1368,7 +1366,14 @@ app.get('/api/video/year', async (req, res) => {
       const year = video.year;
 
       if (year) {
-        console.log(`  ✓ Found year: ${year}`);
+        // Store year in database if videoId provided and DB mode enabled
+        if (videoId && USE_DATABASE) {
+          try {
+            await dbService.updateVideoYear(videoId, year);
+          } catch (dbError) {
+          }
+        }
+        
         return res.json({ year });
       }
     }
