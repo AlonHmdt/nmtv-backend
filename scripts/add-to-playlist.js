@@ -216,13 +216,34 @@ async function fetchPlaylistItems(playlistId) {
   return videos;
 }
 
-// Fetch video durations in batches
-async function getVideoDurations(videoIds) {
-  const durations = {};
+// OPTIMIZED: Fetch video durations only for videos not in DB
+async function getVideoDurations(videoIds, pool) {
+  // Check which videos already exist in DB
+  const existingResult = await pool.query(
+    'SELECT youtube_video_id, duration_seconds FROM videos WHERE youtube_video_id = ANY($1)',
+    [videoIds]
+  );
+  
+  const existingDurations = {};
+  existingResult.rows.forEach(row => {
+    existingDurations[row.youtube_video_id] = row.duration_seconds;
+  });
+  
+  // Only fetch from YouTube for videos not in DB
+  const missingVideoIds = videoIds.filter(id => !existingDurations[id]);
+  
+  if (missingVideoIds.length === 0) {
+    console.log('All video durations found in database (skipping YouTube API)');
+    return existingDurations;
+  }
+  
+  console.log(`Fetching durations: ${missingVideoIds.length} from YouTube API, ${videoIds.length - missingVideoIds.length} from database`);
+  
+  const durations = { ...existingDurations };
   const batchSize = 50;
   
-  for (let i = 0; i < videoIds.length; i += batchSize) {
-    const batch = videoIds.slice(i, i + batchSize);
+  for (let i = 0; i < missingVideoIds.length; i += batchSize) {
+    const batch = missingVideoIds.slice(i, i + batchSize);
     const url = 'https://www.googleapis.com/youtube/v3/videos';
     const params = {
       part: 'contentDetails',
@@ -241,9 +262,27 @@ async function getVideoDurations(videoIds) {
   return durations;
 }
 
-// Fetch single video details
-async function fetchSingleVideo(videoId) {
-  console.log(`Fetching video details: ${videoId}`);
+// OPTIMIZED: Fetch single video, check DB first
+async function fetchSingleVideo(videoId, pool) {
+  // Check DB first
+  const existingVideo = await pool.query(
+    'SELECT id, title, artist, song, duration_seconds FROM videos WHERE youtube_video_id = $1',
+    [videoId]
+  );
+  
+  if (existingVideo.rows.length > 0) {
+    console.log(`Video found in database (skipping YouTube API)`);
+    const row = existingVideo.rows[0];
+    return [{
+      videoId: videoId,
+      title: row.title,
+      position: 0,
+      duration: row.duration_seconds
+    }];
+  }
+  
+  // Not in DB, fetch from YouTube
+  console.log(`Fetching video details from YouTube: ${videoId}`);
   
   const url = 'https://www.googleapis.com/youtube/v3/videos';
   const params = {
@@ -262,7 +301,7 @@ async function fetchSingleVideo(videoId) {
   const item = items[0];
   const duration = parseDuration(item.contentDetails.duration);
   
-  console.log(`Found video: ${item.snippet.title}`);
+  console.log(`Found video on YouTube: ${item.snippet.title}`);
   
   return [{
     videoId: item.id,
@@ -375,9 +414,9 @@ async function main() {
     let durations = {};
     
     if (videoId) {
-      // Single video
+      // Single video - check DB first
       console.log(`Detected single video URL\n`);
-      youtubeVideos = await fetchSingleVideo(videoId);
+      youtubeVideos = await fetchSingleVideo(videoId, pool);
       durations[videoId] = youtubeVideos[0].duration;
     } else if (playlistId) {
       // YouTube playlist
@@ -390,10 +429,10 @@ async function main() {
         return;
       }
       
-      // Fetch durations
+      // Fetch durations (optimized to check DB first)
       console.log('Fetching video durations...');
       const videoIds = youtubeVideos.map(v => v.videoId);
-      durations = await getVideoDurations(videoIds);
+      durations = await getVideoDurations(videoIds, pool);
     } else {
       throw new Error('Could not extract video ID or playlist ID from URL');
     }
