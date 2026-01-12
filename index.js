@@ -1358,7 +1358,7 @@ app.get('/api/video/year', async (req, res) => {
       headers: {
         'IMVDB-APP-KEY': IMVDB_API_KEY
       },
-      timeout: 5000 // 5 second timeout
+      timeout: 5000
     });
 
     if (response.data && response.data.results && response.data.results.length > 0) {
