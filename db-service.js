@@ -331,13 +331,70 @@ async function getVideoByYoutubeId(youtubeVideoId) {
 async function markVideoUnavailable(youtubeVideoId, errorCode = null) {
   const client = getPool();
   
-  // Store error code in flag_reason if provided
-  const flagReason = errorCode ? `YouTube Error Code: ${errorCode}` : null;
-  
-  await client.query(
-    'UPDATE videos SET is_available = false, flag_reason = $1, updated_at = NOW() WHERE youtube_video_id = $2',
-    [flagReason, youtubeVideoId]
+  // Get current video state
+  const videoResult = await client.query(
+    'SELECT unavailable_count, last_unavailable_at FROM videos WHERE youtube_video_id = $1',
+    [youtubeVideoId]
   );
+  
+  if (videoResult.rows.length === 0) {
+    console.log(`Video ${youtubeVideoId} not found in database`);
+    return;
+  }
+  
+  const video = videoResult.rows[0];
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  
+  let newCount;
+  let shouldFlag = false;
+  
+  // If last unavailable was > 30 days ago (or never), reset counter to 1
+  if (!video.last_unavailable_at || new Date(video.last_unavailable_at) < thirtyDaysAgo) {
+    newCount = 1;
+    console.log(`Video ${youtubeVideoId}: Resetting counter to 1 (last report was >30 days ago)`);
+  } else {
+    // Otherwise, increment counter
+    newCount = (video.unavailable_count || 0) + 1;
+    console.log(`Video ${youtubeVideoId}: Incrementing counter to ${newCount}`);
+  }
+  
+  // Auto-flag if counter reaches threshold
+  if (newCount >= 5) {
+    shouldFlag = true;
+    console.log(`Video ${youtubeVideoId}: Auto-flagging (counter >= 5)`);
+  }
+  
+  // Build flag reason
+  let flagReason = null;
+  if (shouldFlag) {
+    flagReason = errorCode 
+      ? `Auto-flagged: ${newCount} unavailable reports (Error: ${errorCode})`
+      : `Auto-flagged: ${newCount} unavailable reports`;
+  }
+  
+  // Update video
+  if (shouldFlag) {
+    await client.query(
+      `UPDATE videos 
+       SET unavailable_count = $1, 
+           last_unavailable_at = $2, 
+           is_flagged = true,
+           flag_reason = $3,
+           updated_at = NOW() 
+       WHERE youtube_video_id = $4`,
+      [newCount, now, flagReason, youtubeVideoId]
+    );
+  } else {
+    await client.query(
+      `UPDATE videos 
+       SET unavailable_count = $1, 
+           last_unavailable_at = $2,
+           updated_at = NOW() 
+       WHERE youtube_video_id = $3`,
+      [newCount, now, youtubeVideoId]
+    );
+  }
   
   // Clear related cache
   clearCache('videos:');
@@ -368,7 +425,6 @@ async function getRandomBumpers(count = 1) {
     const result = await client.query(`
       SELECT youtube_video_id as id, title, duration_seconds
       FROM bumpers
-      WHERE is_available = true
       ORDER BY id
     `);
     
@@ -392,7 +448,7 @@ async function getAllBumpers() {
 
   const client = getPool();
   const result = await client.query(`
-    SELECT youtube_video_id as id, title, duration_seconds, is_available
+    SELECT youtube_video_id as id, title, duration_seconds
     FROM bumpers
     ORDER BY id
   `);

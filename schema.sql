@@ -46,7 +46,8 @@ CREATE TABLE videos (
   year INTEGER,  -- Release year (nullable)
   is_flagged BOOLEAN DEFAULT FALSE,
   flag_reason TEXT,
-  is_available BOOLEAN DEFAULT TRUE,
+  unavailable_count INT DEFAULT 0,  -- Counter for unavailability reports
+  last_unavailable_at TIMESTAMP,  -- Last time video was marked unavailable
   is_limited BOOLEAN DEFAULT FALSE,  -- True for location/region-restricted videos
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
@@ -71,7 +72,6 @@ CREATE TABLE bumpers (
   youtube_video_id VARCHAR(50) UNIQUE NOT NULL,
   title VARCHAR(500) NOT NULL,
   duration_seconds INTEGER NOT NULL,
-  is_available BOOLEAN DEFAULT TRUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -80,10 +80,9 @@ CREATE TABLE bumpers (
 -- ============================================
 CREATE INDEX idx_videos_youtube_id ON videos(youtube_video_id);
 CREATE INDEX idx_videos_flagged ON videos(is_flagged);
-CREATE INDEX idx_videos_available ON videos(is_available);
+CREATE INDEX idx_videos_unavailable_tracking ON videos(unavailable_count, last_unavailable_at);
 CREATE INDEX idx_videos_limited ON videos(is_limited);
 CREATE INDEX idx_bumpers_youtube_id ON bumpers(youtube_video_id);
-CREATE INDEX idx_bumpers_available ON bumpers(is_available);
 CREATE INDEX idx_playlist_videos_playlist ON playlist_videos(playlist_id);
 CREATE INDEX idx_playlist_videos_video ON playlist_videos(video_id);
 CREATE INDEX idx_channel_playlists_channel ON channel_playlists(channel_id);

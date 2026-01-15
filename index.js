@@ -1121,11 +1121,11 @@ app.post('/api/videos/:videoId/unavailable', async (req, res) => {
       return res.status(400).json({ error: 'Video ID is required' });
     }
 
-    await dbService.markVideoUnavailable(videoId, errorCode);
+    const result = await dbService.markVideoUnavailable(videoId, errorCode);
     
     res.json({ 
       success: true, 
-      message: 'Video marked as unavailable',
+      message: 'Video unavailability tracked',
       videoId,
       errorCode: errorCode || null
     });
