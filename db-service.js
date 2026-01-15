@@ -360,9 +360,9 @@ async function markVideoUnavailable(youtubeVideoId, errorCode = null) {
   }
   
   // Auto-flag if counter reaches threshold
-  if (newCount >= 5) {
+  if (newCount >= 50) {
     shouldFlag = true;
-    console.log(`Video ${youtubeVideoId}: Auto-flagging (counter >= 5)`);
+    console.log(`Video ${youtubeVideoId}: Auto-flagging (counter >= 50)`);
   }
   
   // Build flag reason
