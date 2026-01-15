@@ -146,7 +146,8 @@ const CHANNELS = {
     { id: "PLcIRQEExiw7aDBTUm4yY6qxkOFccpdzgr", label: "Noa's Winter" },
     { id: "PLcIRQEExiw7ZuW3rOAqqkKZfnZovAdauM", label: "NOA-LON-DON" },
     { id: "PLcIRQEExiw7aQ2RBhOhL3tDOvDKtNSGO_", label: "Chip-Chop Noa"}
-  ]
+  ],
+  "random": [] // Random channel - pulls from all music channels
 };
 
 // Bumper playlists - short videos to play between songs
@@ -755,16 +756,16 @@ function selectRandomPlaylist(channel, customPlaylistIds = [], excludePlaylistId
   return selectedPlaylist;
 }
 
-// Get programming block for channel (for LIVE channel, use random mixing)
+// Get programming block for channel (RANDOM channel uses special mixing, all others use standard flow)
 async function getChannelBlock(channel, customPlaylistIds = [], excludePlaylistIds = [], excludeVideoIds = [], preferCustom = false) {
   // Getting programming block for channel
 
-  // Special handling for LIVE channel - use random mixing from all playlists
-  if (channel === 'live') {
-    return await getLiveChannelBlock(customPlaylistIds, excludeVideoIds);
+  // Special handling for RANDOM channel - completely shuffled from all channels
+  if (channel === 'random') {
+    return await getRandomChannelBlock(customPlaylistIds, excludeVideoIds);
   }
 
-  // For other channels, select a random playlist and create a block
+  // For all other channels (including live), select a random playlist and create a block
   const selectedPlaylist = selectRandomPlaylist(channel, customPlaylistIds, excludePlaylistIds, preferCustom);
 
   // If it's a custom playlist, fetch the YouTube playlist name
@@ -777,30 +778,44 @@ async function getChannelBlock(channel, customPlaylistIds = [], excludePlaylistI
   return await createProgrammingBlock(selectedPlaylist, channel, excludeVideoIds);
 }
 
-// Special handler for LIVE channel - random mixing from all playlists
-async function getLiveChannelBlock(customPlaylistIds = [], excludeVideoIds = []) {
-  // Getting LIVE channel block (random mixing)
+// Special handler for RANDOM channel - shuffles videos from ALL channels
+async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = []) {
+  // Collect all playlists from all channels (exclude noa)
+  const channelsToInclude = ['rock', 'hiphop', '2000s', '1990s', '1980s', 'live', 'shows'];
+  const allPlaylists = channelsToInclude.flatMap(ch => CHANNELS[ch] || []);
 
-  const officialPlaylists = CHANNELS['live'] || [];
+  // Performance optimization: randomly select a subset of playlists instead of all
+  // This drastically reduces API calls while maintaining variety
+  const PLAYLISTS_TO_SAMPLE = 12; // Sample 12 random playlists from ~36 total
+  const VIDEOS_PER_PLAYLIST = 20; // Fetch 20 videos per playlist (12 × 20 = 240 videos to shuffle)
+  
+  shuffle(allPlaylists);
+  const selectedPlaylists = allPlaylists.slice(0, PLAYLISTS_TO_SAMPLE);
 
-  // Fetch all videos from all playlists
-  const allPromises = officialPlaylists.map(p =>
-    getPlaylistVideos(p.id, null, null, 'live').catch(error => {
-      console.error(`Error fetching playlist ${p.id}:`, error.message);
+  // Fetch videos from selected playlists
+  const allPromises = selectedPlaylists.map(p =>
+    getPlaylistVideos(p.id, VIDEOS_PER_PLAYLIST, null, 'random').catch(error => {
       return [];
     })
   );
 
-  // Add custom playlists if any
+  // Add custom playlists if any - fetch playlist names and attach to videos
   if (customPlaylistIds.length > 0) {
     const customPromises = customPlaylistIds
       .filter(isValidPlaylistId)
-      .map(pid =>
-        getPlaylistVideos(pid, 100, null, 'live').catch(error => {
-          console.error(`Error fetching custom playlist ${pid}:`, error.message);
+      .map(async (pid) => {
+        try {
+          const videos = await getPlaylistVideos(pid, 100, null, 'random');
+          // Fetch playlist name from YouTube API and attach to videos
+          const playlistName = await getPlaylistName(pid);
+          return videos.map(v => ({
+            ...v,
+            playlistLabel: playlistName || `Custom Playlist (${pid})`
+          }));
+        } catch (error) {
           return [];
-        })
-      );
+        }
+      });
     allPromises.push(...customPromises);
   }
 
@@ -823,8 +838,8 @@ async function getLiveChannelBlock(customPlaylistIds = [], excludeVideoIds = [])
   const items = insertBumpersIntoBlock(blockVideos, 4);
 
   return {
-    playlistLabel: 'Live Performances', // Fixed label for live channel
-    playlistId: 'live-mix',
+    playlistLabel: '', // Empty - no playlist label for random channel
+    playlistId: 'random-mix',
     items
   };
 }
@@ -845,6 +860,80 @@ async function getLiveChannelBlock(customPlaylistIds = [], excludeVideoIds = [])
 async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excludePlaylistIds = [], excludeVideoIds = [], preferCustom = false) {
   if (USE_DATABASE) {
     try {
+      // Special handling for RANDOM channel in database mode
+      if (channel === 'random') {
+        // Get all playlists from all channels (exclude noa)
+        const channelsToInclude = ['rock', 'hiphop', '2000s', '1990s', '1980s', 'live', 'shows'];
+        const allDbPlaylistsArrays = await Promise.all(
+          channelsToInclude.map(ch => dbService.getAllPlaylistsForChannel(ch))
+        );
+        const allDbPlaylists = allDbPlaylistsArrays.flat();
+        
+        // Add custom playlists
+        const customPlaylists = (customPlaylistIds || [])
+          .filter(isValidPlaylistId)
+          .map(id => ({ id, isCustom: true }));
+        
+        const allPlaylists = [...allDbPlaylists, ...customPlaylists];
+        
+        if (allPlaylists.length === 0) {
+          throw new Error('No playlists available for random channel');
+        }
+        
+        // Fetch LIMITED videos from each playlist to reduce memory/query load (50 per playlist)
+        const videoPromises = allPlaylists.map(async playlist => {
+          if (playlist.isCustom) {
+            // Custom playlist - fetch from YouTube API (limit 50)
+            const videos = await fetchPlaylistItems(playlist.id, 50, 'random');
+            return videos;
+          } else {
+            // DB playlist - fetch from database (limit 50)
+            const result = await dbService.getVideosByPlaylistId(playlist.id, 50, []);
+            return result.videos.map(v => ({
+              id: v.id,
+              title: v.title,
+              artist: v.artist,
+              song: v.song
+            }));
+          }
+        });
+        
+        const allVideosArrays = await Promise.all(videoPromises);
+        let allVideos = dedupe(allVideosArrays.flat());
+        
+        // Filter out excluded videos
+        const excludeSet = new Set(excludeVideoIds);
+        let availableVideos = allVideos.filter(v => !excludeSet.has(v.id));
+        
+        if (availableVideos.length === 0) {
+          availableVideos = allVideos;
+        }
+        
+        // Shuffle and take 12 videos
+        shuffle(availableVideos);
+        const blockVideos = availableVideos.slice(0, 12);
+        
+        // Convert to items format
+        const items = blockVideos.map(v => ({
+          id: v.id,
+          title: v.title,
+          artist: v.artist,
+          song: v.song,
+          isLimited: false,
+          isBumper: false
+        }));
+        
+        // Insert bumpers
+        const bumpers = await dbService.getRandomBumpers(4);
+        const itemsWithBumpers = insertBumpersIntoBlockFromDB(items, bumpers, 4);
+        
+        return {
+          playlistLabel: '', // Empty for random channel
+          playlistId: 'random-mix',
+          items: itemsWithBumpers
+        };
+      }
+      
       // Build list of available playlists (DB + custom)
       const dbPlaylists = await dbService.getAllPlaylistsForChannel(channel);
       

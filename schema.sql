@@ -99,4 +99,5 @@ INSERT INTO channels (id, name, icon, is_easter_egg) VALUES
   ('1980s', '1980s', '📺', FALSE),
   ('live', 'Live', '🎸', FALSE),
   ('shows', 'Shows', '🎬', FALSE),
+  ('random', 'Random', '🎲', FALSE),
   ('noa', 'NOA', '🎵', TRUE);
