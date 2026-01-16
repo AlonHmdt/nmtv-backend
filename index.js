@@ -835,7 +835,7 @@ async function getSpecialChannelBlock() {
       artist: v.artist,
       song: v.song,
       year: v.year,
-      isLimited: false,
+      isLimited: true, // Special channel videos should be skipped if unavailable, not tracked
       isBumper: false
     }));
 
