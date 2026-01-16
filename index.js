@@ -141,13 +141,22 @@ const CHANNELS = {
   ],
   "noa": [
     { id: "PLcIRQEExiw7aK3zIogUqYDQLi82XJvAiY", label: "30 Years of Noa" },
-    { id: "PLcIRQEExiw7YQ3A0rJpFfinqpa_3eGBBm", label: "BerliNoa"},
+    { id: "PLcIRQEExiw7YQ3A0rJpFfinqpa_3eGBBm", label: "BerliNoa" },
     { id: "PLcIRQEExiw7YAWUtoixTBV5wAcLQzO8aa", label: "Noa Is Budapesting" },
     { id: "PLcIRQEExiw7aDBTUm4yY6qxkOFccpdzgr", label: "Noa's Winter" },
     { id: "PLcIRQEExiw7ZuW3rOAqqkKZfnZovAdauM", label: "NOA-LON-DON" },
-    { id: "PLcIRQEExiw7aQ2RBhOhL3tDOvDKtNSGO_", label: "Chip-Chop Noa"}
+    { id: "PLcIRQEExiw7aQ2RBhOhL3tDOvDKtNSGO_", label: "Chip-Chop Noa" }
   ],
   "random": [] // Random channel - pulls from all music channels
+};
+
+const SPECIAL_EVENT_CONFIG = {
+  enabled: true,
+  id: 'david_bowie_10_years',
+  label: '10 YEARS WITHOUT DAVID BOWIE',
+  playlists: [
+    { id: "PLPB4xn23TQjll52hcfuCn5Y_5ga89Hbb3", label: "10 YEARS WITHOUT DAVID BOWIE" },
+  ]
 };
 
 // Bumper playlists - short videos to play between songs
@@ -192,13 +201,13 @@ async function fetchPlaylistItems(playlistId, maxVideos = null, channel = null) 
 
     try {
       const res = await axios.get(url);
-      
+
       // Check if playlist is private or has no items
       if (!res.data.items) {
         console.warn(`  └─ Playlist ${playlistId} returned no items (may be private or deleted)`);
         break;
       }
-      
+
       const items = res.data.items || [];
 
       // Process videos from this page
@@ -629,7 +638,7 @@ async function createProgrammingBlock(playlistObj, channel, excludeVideoIds = []
     blockSize = 12;
     bumperInterval = 4; // Position-based pattern
   } else {
-    // Music channels: rock, hiphop, 2000s, 1990s, 1980s
+    // Music channels: rock, hiphop, 2000s, 1990s, 1980s, special, random
     blockSize = 12;
     bumperInterval = 4; // Position-based pattern
   }
@@ -673,11 +682,11 @@ function insertBumpersIntoBlock(videos, interval) {
     result.push(videos[0]); // First video
     result.push(shuffledBumpers[bumperIndex % shuffledBumpers.length]);
     bumperIndex++;
-    
+
     result.push(videos[1]); // Second video
     result.push(videos[2]); // Third video
     result.push(shuffledBumpers[bumperIndex % shuffledBumpers.length]);
-    
+
     return result;
   }
 
@@ -765,6 +774,11 @@ async function getChannelBlock(channel, customPlaylistIds = [], excludePlaylistI
     return await getRandomChannelBlock(customPlaylistIds, excludeVideoIds);
   }
 
+  // Special handling for SPECIAL channel
+  if (channel === 'special') {
+    return await getSpecialChannelBlock();
+  }
+
   // For all other channels (including live), select a random playlist and create a block
   const selectedPlaylist = selectRandomPlaylist(channel, customPlaylistIds, excludePlaylistIds, preferCustom);
 
@@ -778,6 +792,68 @@ async function getChannelBlock(channel, customPlaylistIds = [], excludePlaylistI
   return await createProgrammingBlock(selectedPlaylist, channel, excludeVideoIds);
 }
 
+// Special handler for SPECIAL channel
+async function getSpecialChannelBlock() {
+  if (!SPECIAL_EVENT_CONFIG.enabled || !SPECIAL_EVENT_CONFIG.playlists.length) {
+    throw new Error('Special channel is not active');
+  }
+
+  // Pick a random playlist from the config
+  const playlist = SPECIAL_EVENT_CONFIG.playlists[Math.floor(Math.random() * SPECIAL_EVENT_CONFIG.playlists.length)];
+
+  // Fetch videos from YouTube API (special channel always uses YouTube API for videos)
+  let allVideos = await getPlaylistVideos(playlist.id, null, null, 'special');
+  
+  if (!allVideos || allVideos.length === 0) {
+    throw new Error('No videos found for special channel');
+  }
+
+  // Shuffle the videos
+  shuffle(allVideos);
+  
+  // Take 12 videos (music channel block size)
+  const blockSize = 12;
+  let blockVideos = allVideos.slice(0, blockSize);
+  
+  // If playlist is smaller than block size, repeat videos to fill the block
+  if (blockVideos.length < blockSize && allVideos.length > 0) {
+    while (blockVideos.length < blockSize) {
+      const needed = blockSize - blockVideos.length;
+      blockVideos = blockVideos.concat(allVideos.slice(0, needed));
+    }
+  }
+
+  let items;
+
+  if (USE_DATABASE) {
+    // Database mode: get bumpers from database
+    
+    // Convert videos to items format
+    const videoItems = blockVideos.map(v => ({
+      id: v.id,
+      title: v.title,
+      artist: v.artist,
+      song: v.song,
+      year: v.year,
+      isLimited: false,
+      isBumper: false
+    }));
+
+    // Get bumpers from database
+    const bumpers = await dbService.getRandomBumpers(4);
+    items = insertBumpersIntoBlockFromDB(videoItems, bumpers, 4);
+  } else {
+    // YouTube API mode: use cached bumpers
+    items = insertBumpersIntoBlock(blockVideos, 4);
+  }
+  
+  return {
+    playlistLabel: playlist.label,
+    playlistId: playlist.id,
+    items
+  };
+}
+
 // Special handler for RANDOM channel - shuffles videos from ALL channels
 async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = []) {
   // Collect all playlists from all channels (exclude noa)
@@ -788,7 +864,7 @@ async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = [
   // This drastically reduces API calls while maintaining variety
   const PLAYLISTS_TO_SAMPLE = 12; // Sample 12 random playlists from ~36 total
   const VIDEOS_PER_PLAYLIST = 20; // Fetch 20 videos per playlist (12 × 20 = 240 videos to shuffle)
-  
+
   shuffle(allPlaylists);
   const selectedPlaylists = allPlaylists.slice(0, PLAYLISTS_TO_SAMPLE);
 
@@ -860,6 +936,12 @@ async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = [
 async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excludePlaylistIds = [], excludeVideoIds = [], preferCustom = false) {
   if (USE_DATABASE) {
     try {
+      // Special handling for SPECIAL channel in database mode
+      if (channel === 'special') {
+        // Special channel always uses YouTube API, so fall back immediately
+        return await getChannelBlock(channel, customPlaylistIds, excludePlaylistIds, excludeVideoIds, preferCustom);
+      }
+
       // Special handling for RANDOM channel in database mode
       if (channel === 'random') {
         // Get all playlists from all channels (exclude noa)
@@ -868,18 +950,18 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           channelsToInclude.map(ch => dbService.getAllPlaylistsForChannel(ch))
         );
         const allDbPlaylists = allDbPlaylistsArrays.flat();
-        
+
         // Add custom playlists
         const customPlaylists = (customPlaylistIds || [])
           .filter(isValidPlaylistId)
           .map(id => ({ id, isCustom: true }));
-        
+
         const allPlaylists = [...allDbPlaylists, ...customPlaylists];
-        
+
         if (allPlaylists.length === 0) {
           throw new Error('No playlists available for random channel');
         }
-        
+
         // Fetch LIMITED videos from each playlist to reduce memory/query load (50 per playlist)
         const videoPromises = allPlaylists.map(async playlist => {
           if (playlist.isCustom) {
@@ -897,22 +979,22 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
             }));
           }
         });
-        
+
         const allVideosArrays = await Promise.all(videoPromises);
         let allVideos = dedupe(allVideosArrays.flat());
-        
+
         // Filter out excluded videos
         const excludeSet = new Set(excludeVideoIds);
         let availableVideos = allVideos.filter(v => !excludeSet.has(v.id));
-        
+
         if (availableVideos.length === 0) {
           availableVideos = allVideos;
         }
-        
+
         // Shuffle and take 12 videos
         shuffle(availableVideos);
         const blockVideos = availableVideos.slice(0, 12);
-        
+
         // Convert to items format
         const items = blockVideos.map(v => ({
           id: v.id,
@@ -922,41 +1004,41 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           isLimited: false,
           isBumper: false
         }));
-        
+
         // Insert bumpers
         const bumpers = await dbService.getRandomBumpers(4);
         const itemsWithBumpers = insertBumpersIntoBlockFromDB(items, bumpers, 4);
-        
+
         return {
           playlistLabel: '', // Empty for random channel
           playlistId: 'random-mix',
           items: itemsWithBumpers
         };
       }
-      
+
       // Build list of available playlists (DB + custom)
       const dbPlaylists = await dbService.getAllPlaylistsForChannel(channel);
-      
+
       // Build custom playlist objects
       const customPlaylists = (customPlaylistIds || [])
         .filter(isValidPlaylistId)
         .map(id => ({ id, isCustom: true }));
-      
+
       // Combine all playlists
       const allPlaylists = [...dbPlaylists, ...customPlaylists];
-      
+
       if (allPlaylists.length === 0) {
         throw new Error(`No playlists available for channel: ${channel}`);
       }
-      
+
       // Filter out excluded playlists
       const excludeSet = new Set(excludePlaylistIds);
       const availablePlaylists = allPlaylists.filter(p => !excludeSet.has(p.id.toString()));
-      
+
       // Select a playlist using the same logic as non-DB mode
       let selectedPlaylist;
       const availableList = availablePlaylists.length > 0 ? availablePlaylists : allPlaylists;
-      
+
       if (customPlaylists.length === 0) {
         // No custom playlists, select randomly from DB playlists
         selectedPlaylist = availableList[Math.floor(Math.random() * availableList.length)];
@@ -979,32 +1061,32 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           selectedPlaylist = availableCustom[Math.floor(Math.random() * availableCustom.length)];
         }
       }
-      
+
       // Determine block size
       const blockSize = channel === 'shows' ? 3 : 12;
       let items;
       let playlistLabel;
-      
+
       // Fetch videos based on playlist type
       if (selectedPlaylist.isCustom) {
         // Custom playlist - fetch from YouTube API
         const playlistName = await getPlaylistName(selectedPlaylist.id);
         playlistLabel = playlistName || `Custom Playlist (${selectedPlaylist.id})`;
-        
+
         const videos = await fetchPlaylistItems(selectedPlaylist.id, null, channel);
-        
+
         // Filter out excluded videos
         const excludeSet = new Set(excludeVideoIds);
         let availableVideos = videos.filter(v => !excludeSet.has(v.id));
-        
+
         if (availableVideos.length === 0) {
           availableVideos = videos;
         }
-        
+
         // Shuffle and take block size
         shuffle(availableVideos);
         let blockVideos = availableVideos.slice(0, blockSize);
-        
+
         // Repeat if needed
         if (blockVideos.length < blockSize && availableVideos.length > 0) {
           while (blockVideos.length < blockSize) {
@@ -1012,7 +1094,7 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
             blockVideos = blockVideos.concat(availableVideos.slice(0, needed));
           }
         }
-        
+
         items = blockVideos.map(v => ({
           id: v.id,
           title: v.title,
@@ -1021,7 +1103,7 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           isLimited: false,
           isBumper: false
         }));
-        
+
       } else {
         // DB playlist - fetch from database
         const result = await dbService.getVideosByPlaylistId(
@@ -1029,9 +1111,9 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           blockSize,
           excludeVideoIds
         );
-        
+
         playlistLabel = selectedPlaylist.name;
-        
+
         items = result.videos.map(v => ({
           id: v.id,
           title: v.title,
@@ -1041,24 +1123,24 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           isBumper: false
         }));
       }
-      
+
       // Insert bumpers
       const bumpers = await dbService.getRandomBumpers(10);
       const bumperInterval = channel === 'shows' ? 'shows' : 4;
       const itemsWithBumpers = insertBumpersIntoBlockFromDB(items, bumpers, bumperInterval);
-      
+
       return {
         playlistLabel,
         playlistId: selectedPlaylist.id.toString(),
         items: itemsWithBumpers
       };
-      
+
     } catch (dbError) {
       console.error('[DB] Error, falling back to YouTube API:', dbError.message);
       // Fall through to YouTube API
     }
   }
-  
+
   // Use existing YouTube API implementation
   return await getChannelBlock(channel, customPlaylistIds, excludePlaylistIds, excludeVideoIds, preferCustom);
 }
@@ -1070,45 +1152,45 @@ function insertBumpersIntoBlockFromDB(videos, bumpers, interval = 4) {
   if (!bumpers || bumpers.length === 0) {
     return videos;
   }
-  
+
   const result = [];
   let lastBumperIndex = -1;
-  
+
   // Helper to get a random bumper (avoiding consecutive duplicates)
   const getRandomBumper = () => {
     if (bumpers.length === 1) return bumpers[0];
-    
+
     let bumperIndex;
     do {
       bumperIndex = Math.floor(Math.random() * bumpers.length);
     } while (bumperIndex === lastBumperIndex);
-    
+
     lastBumperIndex = bumperIndex;
     return bumpers[bumperIndex];
   };
-  
+
   // Special pattern for shows channel: [v1, BUMPER, v2, v3, BUMPER]
   if (interval === 'shows') {
     result.push(videos[0]); // First video
     result.push(getRandomBumper());
-    
+
     result.push(videos[1]); // Second video
     result.push(videos[2]); // Third video
     result.push(getRandomBumper());
-    
+
     return result;
   }
-  
+
   // Pattern for music/live channels: [v1, v2, BUMPER, v3-v6, BUMPER, v7-v10, BUMPER, v11-v12, BUMPER]
   videos.forEach((video, index) => {
     result.push(video);
-    
+
     // Insert bumper after positions 2, 6, 10, 12 (indices 1, 5, 9, 11)
     if (index === 1 || index === 5 || index === 9 || index === 11) {
       result.push(getRandomBumper());
     }
   });
-  
+
   return result;
 }
 
@@ -1164,26 +1246,26 @@ app.get('/health', (req, res) => {
 app.post('/api/videos/:videoId/flag', async (req, res) => {
   try {
     const { videoId } = req.params;
-    
+
     if (!videoId) {
       return res.status(400).json({ error: 'Video ID is required' });
     }
 
     if (!USE_DATABASE) {
       // In non-database mode, just return success (no-op)
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Video flagged (memory only - not persisted)',
-        videoId 
+        videoId
       });
     }
 
     await dbService.flagVideo(videoId);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Video flagged successfully',
-      videoId 
+      videoId
     });
   } catch (error) {
     console.error('Error flagging video:', error);
@@ -1196,24 +1278,24 @@ app.post('/api/videos/:videoId/unavailable', async (req, res) => {
   try {
     if (!USE_DATABASE) {
       // In non-database mode, just return success (no-op)
-      return res.json({ 
-        success: true, 
+      return res.json({
+        success: true,
         message: 'Video marked as unavailable (memory only)',
-        videoId: req.params.videoId 
+        videoId: req.params.videoId
       });
     }
 
     const { videoId } = req.params;
     const { errorCode } = req.body; // Get error code from request body
-    
+
     if (!videoId) {
       return res.status(400).json({ error: 'Video ID is required' });
     }
 
     const result = await dbService.markVideoUnavailable(videoId, errorCode);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       message: 'Video unavailability tracked',
       videoId,
       errorCode: errorCode || null
@@ -1238,7 +1320,8 @@ app.get('/api/ready', async (req, res) => {
         bumpersLoaded: true,
         bumpersCount: 0,
         loadingTime: 0,
-        noaChannelReady: true
+        noaChannelReady: true,
+        specialEvent: SPECIAL_EVENT_CONFIG
       });
     } catch (error) {
       return res.json({
@@ -1270,7 +1353,8 @@ app.get('/api/ready', async (req, res) => {
     bumpersLoaded,
     bumpersCount: bumpersCache?.length || 0,
     loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0,
-    noaChannelReady: isNoaChannelReady
+    noaChannelReady: isNoaChannelReady,
+    specialEvent: SPECIAL_EVENT_CONFIG
   });
 });
 
@@ -1280,7 +1364,7 @@ app.post('/api/channel/noa/load', async (req, res) => {
   if (isNoaChannelReady) {
     return res.json({ success: true, message: 'NOA channel already loaded' });
   }
-  
+
   try {
     const noaPlaylists = CHANNELS['noa'];
     if (!noaPlaylists) {
@@ -1288,7 +1372,7 @@ app.post('/api/channel/noa/load', async (req, res) => {
     }
 
     // Fetch all NOA playlists in parallel
-    const fetchPromises = noaPlaylists.map(p => 
+    const fetchPromises = noaPlaylists.map(p =>
       fetchPlaylistItems(p.id, null, 'noa')
         .then(videos => {
           playlistCache.set(p.id, {
@@ -1309,8 +1393,8 @@ app.post('/api/channel/noa/load', async (req, res) => {
 
     isNoaChannelReady = true;
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: 'NOA channel loaded successfully',
       totalVideos: totalVideos
     });
@@ -1367,7 +1451,7 @@ async function preFetchAllPlaylists() {
     if (channel === 'noa') {
       continue;
     }
-    
+
     playlists.forEach(p => {
       // Only add if we haven't seen this playlist ID before
       if (!fetchedPlaylistIds.has(p.id)) {
@@ -1389,13 +1473,13 @@ async function preFetchAllPlaylists() {
   const fetchPlaylist = async ({ pid, channel }) => {
     try {
       const videos = await getPlaylistVideos(pid, null, null, channel);
-      
+
       // Check if playlist returned videos
       if (!videos || videos.length === 0) {
         console.warn(`  ⚠ Playlist ${pid} (${channel}) is empty or private - skipping`);
         return { success: false, error: 'Empty or private playlist' };
       }
-      
+
       successCount++;
       totalVideos += videos.length;
       console.log(`  ✓ [${successCount}/${allPlaylistsByChannel.length}] Cached ${videos.length} videos from ${pid} (${channel})`);
@@ -1462,7 +1546,7 @@ app.get('/api/video/year', async (req, res) => {
           } catch (dbError) {
           }
         }
-        
+
         return res.json({ year });
       }
     }
@@ -1481,7 +1565,7 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, async () => {
   console.log('NMTV backend running on port ' + PORT);
   console.log(`Mode: ${USE_DATABASE ? 'DATABASE' : 'YOUTUBE_API'}`);
-  
+
   if (!API_KEY) {
     console.warn('WARNING: YOUTUBE_API_KEY not set');
   }
