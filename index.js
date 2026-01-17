@@ -862,8 +862,8 @@ async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = [
 
   // Performance optimization: randomly select a subset of playlists instead of all
   // This drastically reduces API calls while maintaining variety
-  const PLAYLISTS_TO_SAMPLE = 12; // Sample 12 random playlists from ~36 total
-  const VIDEOS_PER_PLAYLIST = 20; // Fetch 20 videos per playlist (12 × 20 = 240 videos to shuffle)
+  const PLAYLISTS_TO_SAMPLE = 8; // Sample 12 random playlists from
+  const VIDEOS_PER_PLAYLIST = 15; // Fetch 20 videos per playlist (12 × 20 = 240 videos to shuffle)
 
   shuffle(allPlaylists);
   const selectedPlaylists = allPlaylists.slice(0, PLAYLISTS_TO_SAMPLE);
