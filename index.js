@@ -231,10 +231,11 @@ const CHANNELS = {
 
 const SPECIAL_EVENT_CONFIG = {
   enabled: false,
-  id: 'david_bowie_10_years',
-  label: '10 YEARS WITHOUT DAVID BOWIE',
+  id: 'grammy_awards_winners_and_performances',
+  label: 'GRAMMY AWARDS WINNERS and Performances',
   playlists: [
-    { id: "PLPB4xn23TQjll52hcfuCn5Y_5ga89Hbb3", label: "10 YEARS WITHOUT DAVID BOWIE" },
+    { id: "PLEFin5ZtEWUoGIJwyvx4MNh8updDLrVd_", label: "GRAMMY Awards - All Performances" },
+    { id: "PLIMFlL12VNnpRbBV2wbWkGlgjLTw_33AM", label: "Grammy winners" },
   ]
 };
 
