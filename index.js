@@ -151,7 +151,7 @@ const CHANNELS = {
 };
 
 const SPECIAL_EVENT_CONFIG = {
-  enabled: true,
+  enabled: false,
   id: 'david_bowie_10_years',
   label: '10 YEARS WITHOUT DAVID BOWIE',
   playlists: [
