@@ -3,6 +3,8 @@ const axios = require('axios');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const cookieParser = require('cookie-parser');
+const crypto = require('crypto');
 require('dotenv').config();
 
 // Database service (new)
@@ -46,6 +48,83 @@ app.use(cors({
 }));
 
 app.use(express.json()); // Parse JSON request bodies
+app.use(cookieParser()); // Parse cookies
+
+// ============================================
+// ADMIN AUTHENTICATION UTILITIES
+// ============================================
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+/**
+ * Generate a signed session token
+ * Token format: base64(timestamp:hmac_signature)
+ */
+function generateSessionToken() {
+  const timestamp = Date.now().toString();
+  const signature = crypto
+    .createHmac('sha256', ADMIN_PASSWORD)
+    .update(timestamp)
+    .digest('hex');
+  return Buffer.from(`${timestamp}:${signature}`).toString('base64');
+}
+
+/**
+ * Verify a session token
+ * Returns { valid: boolean, expiresAt?: number }
+ */
+function verifySessionToken(token) {
+  if (!token || !ADMIN_PASSWORD) {
+    return { valid: false };
+  }
+
+  try {
+    const decoded = Buffer.from(token, 'base64').toString('utf-8');
+    const [timestamp, signature] = decoded.split(':');
+
+    if (!timestamp || !signature) {
+      return { valid: false };
+    }
+
+    // Verify signature
+    const expectedSignature = crypto
+      .createHmac('sha256', ADMIN_PASSWORD)
+      .update(timestamp)
+      .digest('hex');
+
+    if (signature !== expectedSignature) {
+      return { valid: false };
+    }
+
+    // Check expiration
+    const tokenTime = parseInt(timestamp, 10);
+    const expiresAt = tokenTime + SESSION_DURATION;
+
+    if (Date.now() > expiresAt) {
+      return { valid: false };
+    }
+
+    return { valid: true, expiresAt };
+  } catch (error) {
+    return { valid: false };
+  }
+}
+
+/**
+ * Middleware to protect admin routes
+ */
+function adminAuthMiddleware(req, res, next) {
+  const token = req.cookies.adminSession;
+  const result = verifySessionToken(token);
+
+  if (!result.valid) {
+    return res.status(401).json({ error: 'Unauthorized - please login' });
+  }
+
+  req.sessionExpiresAt = result.expiresAt;
+  next();
+}
 
 // Rate limiting configuration
 // General API rate limiter - 100 requests per minute per IP
@@ -803,18 +882,18 @@ async function getSpecialChannelBlock() {
 
   // Fetch videos from YouTube API (special channel always uses YouTube API for videos)
   let allVideos = await getPlaylistVideos(playlist.id, null, null, 'special');
-  
+
   if (!allVideos || allVideos.length === 0) {
     throw new Error('No videos found for special channel');
   }
 
   // Shuffle the videos
   shuffle(allVideos);
-  
+
   // Take 12 videos (music channel block size)
   const blockSize = 12;
   let blockVideos = allVideos.slice(0, blockSize);
-  
+
   // If playlist is smaller than block size, repeat videos to fill the block
   if (blockVideos.length < blockSize && allVideos.length > 0) {
     while (blockVideos.length < blockSize) {
@@ -827,7 +906,7 @@ async function getSpecialChannelBlock() {
 
   if (USE_DATABASE) {
     // Database mode: get bumpers from database
-    
+
     // Convert videos to items format
     const videoItems = blockVideos.map(v => ({
       id: v.id,
@@ -846,7 +925,7 @@ async function getSpecialChannelBlock() {
     // YouTube API mode: use cached bumpers
     items = insertBumpersIntoBlock(blockVideos, 4);
   }
-  
+
   return {
     playlistLabel: playlist.label,
     playlistId: playlist.id,
@@ -1558,6 +1637,628 @@ app.get('/api/video/year', async (req, res) => {
     console.error('Error fetching from IMVDb:', error.message);
     // Return null instead of error to gracefully handle failures
     return res.json({ year: null });
+  }
+});
+
+// ============================================
+// ADMIN AUTHENTICATION ROUTES
+// ============================================
+
+// Login endpoint - verify password and set session cookie
+app.post('/api/admin/login', (req, res) => {
+  const { password } = req.body;
+
+  if (!ADMIN_PASSWORD) {
+    console.error('ADMIN_PASSWORD not configured');
+    return res.status(500).json({ error: 'Admin authentication not configured' });
+  }
+
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Invalid password' });
+  }
+
+  // Generate session token and set cookie
+  const token = generateSessionToken();
+  res.cookie('adminSession', token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: SESSION_DURATION,
+    path: '/'
+  });
+
+  res.json({ success: true, message: 'Login successful' });
+});
+
+// Logout endpoint - clear session cookie
+app.post('/api/admin/logout', (req, res) => {
+  res.cookie('adminSession', '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 0,
+    path: '/'
+  });
+
+  res.json({ success: true });
+});
+
+// Session check endpoint - verify if session is valid
+app.get('/api/admin/session', (req, res) => {
+  const token = req.cookies.adminSession;
+  const result = verifySessionToken(token);
+
+  if (!result.valid) {
+    return res.status(401).json({ valid: false, error: 'Session invalid or expired' });
+  }
+
+  res.json({ valid: true, expiresAt: result.expiresAt });
+});
+
+// ============================================
+// ADMIN ROUTES (Protected)
+// ============================================
+
+// Check if videos exist in DB
+app.post('/api/admin/check-videos', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { videoIds } = req.body;
+
+  if (!Array.isArray(videoIds) || videoIds.length === 0) {
+    return res.status(400).json({ error: 'videoIds array is required' });
+  }
+
+  try {
+    const result = await dbService.checkVideosExistence(videoIds);
+    res.json(result);
+  } catch (error) {
+    console.error('Error checking videos:', error);
+    res.status(500).json({ error: 'Failed to check videos' });
+  }
+});
+
+// Create new playlist
+app.post('/api/admin/playlist', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { name, description, channelId } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Playlist name is required' });
+  }
+
+  try {
+    const id = await dbService.createPlaylist(name, description, channelId);
+    res.json({ success: true, id });
+  } catch (error) {
+    console.error('Error creating playlist:', error);
+    res.status(500).json({ error: 'Failed to create playlist' });
+  }
+});
+
+// Add video to playlist
+app.post('/api/admin/playlist/video', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { playlistId, videoData } = req.body; // videoData = { youtube_video_id, title, artist, song, duration_seconds }
+
+  if (!playlistId || !videoData || !videoData.youtube_video_id) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    const internalId = await dbService.addVideoToPlaylist(playlistId, videoData);
+    res.json({ success: true, videoId: internalId });
+  } catch (error) {
+    console.error('Error adding video to playlist:', error);
+    res.status(500).json({ error: 'Failed to add video to playlist' });
+  }
+});
+
+// Remove video from playlist
+app.delete('/api/admin/playlist/:playlistId/video/:videoId', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { playlistId, videoId } = req.params;
+
+  if (!playlistId || !videoId) {
+    return res.status(400).json({ error: 'Missing playlistId or videoId' });
+  }
+
+  try {
+    await dbService.removeVideoFromPlaylist(parseInt(playlistId), videoId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing video from playlist:', error);
+    res.status(500).json({ error: 'Failed to remove video from playlist' });
+  }
+});
+
+// Get all channels (already exposed via frontend constants but good to have API)
+app.get('/api/channels', async (req, res) => {
+  if (USE_DATABASE) {
+    try {
+      const channels = await dbService.getAllChannels();
+      res.json(channels);
+    } catch (error) {
+      console.error('Error fetching channels:', error);
+      res.status(500).json({ error: 'Failed to fetch channels' });
+    }
+  } else {
+    // Return keys from CHANNELS constant
+    const channels = Object.keys(CHANNELS).map(id => ({ id, name: id.toUpperCase() }));
+    res.json(channels);
+  }
+});
+
+// Get playlists for channel
+app.get('/api/channels/:id/playlists', async (req, res) => {
+  const channelId = req.params.id;
+
+  if (USE_DATABASE) {
+    try {
+      const playlists = await dbService.getAllPlaylistsForChannel(channelId);
+      res.json(playlists);
+    } catch (error) {
+      console.error('Error fetching playlists:', error);
+      res.status(500).json({ error: 'Failed to fetch playlists' });
+    }
+  } else {
+    // Return from CHANNELS constant
+    const playlists = CHANNELS[channelId] || [];
+    res.json(playlists.map(p => ({ id: p.id, name: p.label })));
+  }
+});
+
+// Fetch YouTube metadata for admin interface
+app.post('/api/admin/fetch-youtube-metadata', adminAuthMiddleware, async (req, res) => {
+  const { videoIds } = req.body;
+  if (!Array.isArray(videoIds) || videoIds.length === 0) {
+    return res.status(400).json({ error: 'videoIds array is required' });
+  }
+
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'YOUTUBE_API_KEY not set' });
+  }
+
+  const results = [];
+
+  // YouTube API allows up to 50 video IDs per request
+  for (let i = 0; i < videoIds.length; i += 50) {
+    const batch = videoIds.slice(i, i + 50);
+    const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${batch.join(',')}&key=${API_KEY}`;
+
+    try {
+      const response = await axios.get(url);
+      const items = response.data.items || [];
+
+      items.forEach(item => {
+        const duration = parseDuration(item.contentDetails.duration);
+        const { title, channelTitle } = item.snippet;
+        const parsed = parseTitle(title); // Reuse existing parseTitle
+
+        results.push({
+          id: item.id,
+          title, // Original full title
+          artist: parsed.artist,
+          song: parsed.song,
+          parsedTitle: parsed.title, // If no artist/song found
+          duration,
+          channelTitle,
+          thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url
+        });
+      });
+    } catch (error) {
+      console.error('Error fetching YouTube metadata:', error.message);
+      // Continue to next batch even if one fails
+    }
+  }
+
+  res.json(results);
+});
+
+// Combined scan endpoint - fetches YouTube metadata AND checks DB existence in one request
+app.post('/api/admin/scan-videos', adminAuthMiddleware, async (req, res) => {
+  const { videoIds } = req.body;
+  if (!Array.isArray(videoIds) || videoIds.length === 0) {
+    return res.status(400).json({ error: 'videoIds array is required' });
+  }
+
+  const response = {
+    videos: [], // YouTube metadata
+    dbStatus: {}, // DB existence check
+    bumperStatus: {} // Bumper status check
+  };
+
+  // 1. Fetch YouTube metadata
+  if (API_KEY) {
+    for (let i = 0; i < videoIds.length; i += 50) {
+      const batch = videoIds.slice(i, i + 50);
+      const url = `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${batch.join(',')}&key=${API_KEY}`;
+
+      try {
+        const ytResponse = await axios.get(url);
+        const items = ytResponse.data.items || [];
+
+        items.forEach(item => {
+          const duration = parseDuration(item.contentDetails.duration);
+          const { title, channelTitle } = item.snippet;
+          const parsed = parseTitle(title);
+
+          response.videos.push({
+            id: item.id,
+            title,
+            artist: parsed.artist,
+            song: parsed.song,
+            parsedTitle: parsed.title,
+            duration,
+            channelTitle,
+            thumbnail: item.snippet.thumbnails?.medium?.url || item.snippet.thumbnails?.default?.url
+          });
+        });
+      } catch (error) {
+        console.error('Error fetching YouTube metadata:', error.message);
+      }
+    }
+  }
+
+  // 2. Check DB existence (if database mode enabled)
+  if (USE_DATABASE) {
+    try {
+      response.dbStatus = await dbService.checkVideosExistence(videoIds);
+    } catch (error) {
+      console.error('Error checking DB:', error.message);
+    }
+
+    // 3. Check bumper status
+    try {
+      response.bumperStatus = await dbService.checkBumpersExistence(videoIds);
+    } catch (error) {
+      console.error('Error checking bumpers:', error.message);
+    }
+  }
+
+  res.json(response);
+});
+
+// Add video to bumpers
+app.post('/api/admin/bumper', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { youtube_video_id, title, duration_seconds } = req.body;
+
+  if (!youtube_video_id) {
+    return res.status(400).json({ error: 'youtube_video_id is required' });
+  }
+
+  try {
+    const result = await dbService.addBumper({
+      youtube_video_id,
+      title,
+      duration_seconds
+    });
+
+    if (result.success) {
+      res.json({ success: true, id: result.id });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Error adding bumper:', error);
+    res.status(500).json({ error: 'Failed to add bumper' });
+  }
+});
+
+// Remove video from bumpers
+app.delete('/api/admin/bumper/:videoId', adminAuthMiddleware, async (req, res) => {
+  if (!USE_DATABASE) {
+    return res.status(503).json({ error: 'Database mode not enabled' });
+  }
+
+  const { videoId } = req.params;
+
+  try {
+    const result = await dbService.removeBumper(videoId);
+
+    if (result.success) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    console.error('Error removing bumper:', error);
+    res.status(500).json({ error: 'Failed to remove bumper' });
+  }
+});
+
+// Fetch video year from IMVDb (Admin)
+app.post('/api/admin/fetch-year', adminAuthMiddleware, async (req, res) => {
+  const { title, videoId } = req.body;
+
+  console.log(`🔍 [Admin] Fetching year for title: "${title}" (Video ID: ${videoId})`);
+
+  if (!title) {
+    return res.status(400).json({ error: 'Title is required' });
+  }
+
+  // Use existing logic logic from GET /api/video/year but as a POST for admin usage
+  if (!IMVDB_API_KEY) {
+    console.error('❌ IMVDB_API_KEY is missing!');
+    return res.json({ year: null, error: 'IMVDB_API_KEY not set' });
+  }
+
+  try {
+    const encodedTitle = encodeURIComponent(title);
+    const url = `http://imvdb.com/api/v1/search/videos?q=${encodedTitle}&limit=1`;
+
+    console.log(`   Asking IMVDb: ${url}`);
+
+    const response = await axios.get(url, {
+      headers: {
+        'IMVDB-APP-KEY': IMVDB_API_KEY
+      },
+      timeout: 5000
+    });
+
+    if (response.data && response.data.results) {
+      console.log(`   IMVDb Response Hits: ${response.data.results.length}`);
+      if (response.data.results.length > 0) {
+        const video = response.data.results[0];
+        console.log(`   Top Match: "${video.song_title}" by ${video.artists[0]?.name} (${video.year})`);
+
+        const year = video.year;
+
+        if (year) {
+          // Update database if video ID is provided
+          if (videoId && USE_DATABASE) {
+            try {
+              // Depending on how dbService is structured, we might need to check if video exists first
+              // But existing code just calls updateVideoYear
+              await dbService.updateVideoYear(videoId, year);
+              console.log(`   Updated DB for ${videoId} with year ${year}`);
+            } catch (e) {
+              console.error(`   Failed to update year in DB for ${videoId}:`, e.message);
+            }
+          }
+          return res.json({ year });
+        }
+      }
+    } else {
+      console.log('   Invalid IMVDb response structure');
+    }
+
+    console.log('   No year found.');
+    return res.json({ year: null });
+  } catch (error) {
+    console.error('Error fetching year:', error.message);
+    return res.json({ year: null, error: error.message });
+  }
+});
+
+// ============================================
+// LISTS.JS BROWSER ROUTES
+// ============================================
+
+const fs = require('fs');
+const path = require('path');
+const vm = require('vm');
+
+// Cache for parsed lists.js
+let listsCache = null;
+let listsCacheTime = null;
+const LISTS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+
+/**
+ * Parse lists.js file and extract the list object
+ * Returns { categoryName: [videoId1, videoId2, ...], ... }
+ */
+function parseListsFile() {
+  const now = Date.now();
+
+  // Return cached version if still valid
+  if (listsCache && listsCacheTime && (now - listsCacheTime) < LISTS_CACHE_DURATION) {
+    return listsCache;
+  }
+
+  try {
+    const listsPath = path.join(__dirname, 'lists.js');
+
+    if (!fs.existsSync(listsPath)) {
+      console.error('lists.js file not found at:', listsPath);
+      return null;
+    }
+
+    const fileContent = fs.readFileSync(listsPath, 'utf-8');
+
+    // Wrap the script to expose the 'list' variable
+    // The file has `const list = {...}` so we evaluate and capture it
+    const wrappedScript = `
+      ${fileContent}
+      __result__ = list;
+    `;
+
+    const sandbox = { __result__: null };
+    const script = new vm.Script(wrappedScript);
+    const context = vm.createContext(sandbox);
+    script.runInContext(context);
+
+    if (sandbox.__result__ && typeof sandbox.__result__ === 'object') {
+      listsCache = sandbox.__result__;
+      listsCacheTime = now;
+      console.log(`Parsed lists.js: ${Object.keys(sandbox.__result__).length} categories found`);
+      return sandbox.__result__;
+    }
+
+    console.error('lists.js does not export a valid list object');
+    return null;
+  } catch (error) {
+    console.error('Error parsing lists.js:', error.message);
+    return null;
+  }
+}
+
+// Get all list categories with counts
+app.get('/api/admin/lists', adminAuthMiddleware, (req, res) => {
+  const lists = parseListsFile();
+
+  if (!lists) {
+    return res.status(500).json({ error: 'Failed to parse lists.js' });
+  }
+
+  const categories = Object.keys(lists).map(name => ({
+    name,
+    count: Array.isArray(lists[name]) ? lists[name].length : 0
+  }));
+
+  // Sort by count (descending)
+  categories.sort((a, b) => b.count - a.count);
+
+  res.json({ categories });
+});
+
+// Get paginated videos from a specific category
+app.get('/api/admin/lists/:category', adminAuthMiddleware, (req, res) => {
+  const { category } = req.params;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 50));
+
+  const lists = parseListsFile();
+
+  if (!lists) {
+    return res.status(500).json({ error: 'Failed to parse lists.js' });
+  }
+
+  if (!lists[category]) {
+    return res.status(404).json({ error: `Category "${category}" not found` });
+  }
+
+  const videoIds = lists[category];
+  const totalItems = videoIds.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+
+  // Calculate slice indices
+  const startIndex = (page - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const pageVideoIds = videoIds.slice(startIndex, endIndex);
+
+  res.json({
+    category,
+    page,
+    pageSize,
+    totalPages,
+    totalItems,
+    videoIds: pageVideoIds
+  });
+});
+
+// ============================================
+// YOUTUBE PLAYLIST BROWSER
+// ============================================
+
+// Cache for fetched YouTube playlists
+const ytPlaylistCache = new Map(); // playlistId -> { videoIds: [], fetchedAt: timestamp }
+const YT_PLAYLIST_CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+// Fetch all video IDs from a YouTube playlist
+app.get('/api/admin/youtube-playlist/:playlistId', adminAuthMiddleware, async (req, res) => {
+  const { playlistId } = req.params;
+  const page = Math.max(1, parseInt(req.query.page) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 50));
+
+  if (!API_KEY) {
+    return res.status(500).json({ error: 'YOUTUBE_API_KEY not set' });
+  }
+
+  // Check cache
+  const cached = ytPlaylistCache.get(playlistId);
+  if (cached && (Date.now() - cached.fetchedAt) < YT_PLAYLIST_CACHE_DURATION) {
+    const videoIds = cached.videoIds;
+    const totalItems = videoIds.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+    return res.json({
+      playlistId,
+      title: cached.title,
+      page,
+      pageSize,
+      totalPages,
+      totalItems,
+      videoIds: videoIds.slice(startIndex, endIndex)
+    });
+  }
+
+  try {
+    // Fetch playlist info first
+    const infoUrl = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${playlistId}&key=${API_KEY}`;
+    const infoResponse = await axios.get(infoUrl);
+    const playlistTitle = infoResponse.data.items?.[0]?.snippet?.title || 'Unknown Playlist';
+
+    // Fetch all video IDs from the playlist (paginate through YouTube API)
+    const videoIds = [];
+    let nextPageToken = null;
+
+    do {
+      const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=contentDetails&maxResults=50&playlistId=${playlistId}&key=${API_KEY}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+      const response = await axios.get(url);
+      
+      const items = response.data.items || [];
+      items.forEach(item => {
+        if (item.contentDetails?.videoId) {
+          videoIds.push(item.contentDetails.videoId);
+        }
+      });
+
+      nextPageToken = response.data.nextPageToken;
+    } while (nextPageToken);
+
+    // Cache the result
+    ytPlaylistCache.set(playlistId, {
+      videoIds,
+      title: playlistTitle,
+      fetchedAt: Date.now()
+    });
+
+    // Return paginated response
+    const totalItems = videoIds.length;
+    const totalPages = Math.ceil(totalItems / pageSize);
+    const startIndex = (page - 1) * pageSize;
+    const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+    res.json({
+      playlistId,
+      title: playlistTitle,
+      page,
+      pageSize,
+      totalPages,
+      totalItems,
+      videoIds: videoIds.slice(startIndex, endIndex)
+    });
+
+  } catch (error) {
+    console.error('Error fetching YouTube playlist:', error.message);
+    
+    if (error.response?.status === 404) {
+      return res.status(404).json({ error: 'Playlist not found or is private' });
+    }
+    
+    res.status(500).json({ error: 'Failed to fetch playlist' });
   }
 });
 
