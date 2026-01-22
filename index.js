@@ -735,6 +735,12 @@ async function createProgrammingBlock(playlistObj, channel, excludeVideoIds = []
     }
   }
 
+  // Transform videos to include duration field (null for YouTube API mode)
+  blockVideos = blockVideos.map(v => ({
+    ...v,
+    duration: null
+  }));
+
   // Insert bumpers
   const items = insertBumpersIntoBlock(blockVideos, bumperInterval);
 
@@ -915,6 +921,7 @@ async function getSpecialChannelBlock() {
       artist: v.artist,
       song: v.song,
       year: v.year,
+      duration: null,
       isLimited: true, // Special channel videos should be skipped if unavailable, not tracked
       isBumper: false
     }));
@@ -988,7 +995,10 @@ async function getRandomChannelBlock(customPlaylistIds = [], excludeVideoIds = [
 
   // Shuffle and take 12 videos
   shuffle(availableVideos);
-  const blockVideos = availableVideos.slice(0, 12);
+  const blockVideos = availableVideos.slice(0, 12).map(v => ({
+    ...v,
+    duration: null
+  }));
 
   // Insert bumpers
   const items = insertBumpersIntoBlock(blockVideos, 4);
@@ -1055,7 +1065,8 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
               id: v.id,
               title: v.title,
               artist: v.artist,
-              song: v.song
+              song: v.song,
+              duration: v.duration_seconds
             }));
           }
         });
@@ -1081,6 +1092,7 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           title: v.title,
           artist: v.artist,
           song: v.song,
+          duration: v.duration,
           isLimited: false,
           isBumper: false
         }));
@@ -1180,6 +1192,7 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           title: v.title,
           artist: v.artist,
           song: v.song,
+          duration: null,
           isLimited: false,
           isBumper: false
         }));
@@ -1199,6 +1212,7 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           title: v.title,
           artist: v.artist,
           song: v.song,
+          duration: v.duration_seconds,
           isLimited: v.is_limited,
           isBumper: false
         }));
