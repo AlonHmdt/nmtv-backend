@@ -233,6 +233,8 @@ const SPECIAL_EVENT_CONFIG = {
   enabled: false,
   id: 'grammy_awards_winners_and_performances',
   label: 'GRAMMY AWARDS WINNERS and Performances',
+  icon1: '👨‍🎤',
+  icon2: '🎵',
   playlists: [
     { id: "PLEFin5ZtEWUoGIJwyvx4MNh8updDLrVd_", label: "GRAMMY Awards - All Performances" },
     { id: "PLIMFlL12VNnpRbBV2wbWkGlgjLTw_33AM", label: "Grammy winners" },
