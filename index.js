@@ -442,7 +442,8 @@ async function fetchBumpers() {
     })
     .map(bumper => ({
       ...bumper,
-      isBumper: true
+      isBumper: true,
+      playlistId: 'bumpers'
     }));
 
   console.log(`  ✓ Found ${filteredBumpers.length} bumpers (≤ ${MAX_BUMPER_DURATION}s) out of ${allBumpers.length} total`);
@@ -925,7 +926,8 @@ async function getSpecialChannelBlock() {
       year: v.year,
       duration: null,
       isLimited: true, // Special channel videos should be skipped if unavailable, not tracked
-      isBumper: false
+      isBumper: false,
+      playlistId: playlist.id
     }));
 
     // Get bumpers from database
@@ -1096,7 +1098,8 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           song: v.song,
           duration: v.duration,
           isLimited: false,
-          isBumper: false
+          isBumper: false,
+          playlistId: v.playlistId
         }));
 
         // Insert bumpers
@@ -1196,7 +1199,8 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           song: v.song,
           duration: null,
           isLimited: false,
-          isBumper: false
+          isBumper: false,
+          playlistId: selectedPlaylist.id
         }));
 
       } else {
@@ -1216,7 +1220,8 @@ async function getChannelBlockWithFallback(channel, customPlaylistIds = [], excl
           song: v.song,
           duration: v.duration_seconds,
           isLimited: v.is_limited,
-          isBumper: false
+          isBumper: false,
+          playlistId: selectedPlaylist.id
         }));
       }
 

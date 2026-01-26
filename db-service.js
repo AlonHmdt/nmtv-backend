@@ -437,7 +437,8 @@ async function getRandomBumpers(count = 1) {
   return shuffled.slice(0, count).map(b => ({
     id: b.id,
     title: b.title,
-    isBumper: true
+    isBumper: true,
+    playlistId: 'bumpers'
   }));
 }
 
