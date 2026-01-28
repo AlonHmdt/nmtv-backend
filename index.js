@@ -230,14 +230,14 @@ const CHANNELS = {
 };
 
 const SPECIAL_EVENT_CONFIG = {
-  enabled: false,
+  enabled: true,
   id: 'grammy_awards_winners_and_performances',
-  label: 'GRAMMY AWARDS WINNERS and Performances',
-  icon1: '👨‍🎤',
-  icon2: '🎵',
+  label: 'GRAMMY AWARDS',
+  icon1: '🎶',
+  icon2: '🏆',
   playlists: [
-    { id: "PLEFin5ZtEWUoGIJwyvx4MNh8updDLrVd_", label: "GRAMMY Awards - All Performances" },
-    { id: "PLIMFlL12VNnpRbBV2wbWkGlgjLTw_33AM", label: "Grammy winners" },
+    { id: "PLEFin5ZtEWUoGIJwyvx4MNh8updDLrVd_", label: "Grammy Awards Performances" },
+    { id: "PLIMFlL12VNnpRbBV2wbWkGlgjLTw_33AM", label: "Grammy Awards Winners" },
   ]
 };
 
