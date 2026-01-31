@@ -2080,16 +2080,17 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-// Cache for parsed lists.js
+// Cache for MTV playlists
 let listsCache = null;
 let listsCacheTime = null;
 const LISTS_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
+const MTV_PLAYLISTS_URL = 'https://wantmymtv.vercel.app/public/mtv-playlists.json';
 
 /**
- * Parse lists.js file and extract the list object
+ * Fetch MTV playlists from remote URL
  * Returns { categoryName: [videoId1, videoId2, ...], ... }
  */
-function parseListsFile() {
+async function fetchMTVPlaylists() {
   const now = Date.now();
 
   // Return cached version if still valid
@@ -2098,48 +2099,35 @@ function parseListsFile() {
   }
 
   try {
-    const listsPath = path.join(__dirname, 'lists.js');
+    console.log('Fetching MTV playlists from:', MTV_PLAYLISTS_URL);
+    const response = await axios.get(MTV_PLAYLISTS_URL, {
+      timeout: 10000, // 10 second timeout
+      headers: {
+        'User-Agent': 'NMTV-Backend/1.0'
+      }
+    });
 
-    if (!fs.existsSync(listsPath)) {
-      console.error('lists.js file not found at:', listsPath);
-      return null;
-    }
-
-    const fileContent = fs.readFileSync(listsPath, 'utf-8');
-
-    // Wrap the script to expose the 'list' variable
-    // The file has `const list = {...}` so we evaluate and capture it
-    const wrappedScript = `
-      ${fileContent}
-      __result__ = list;
-    `;
-
-    const sandbox = { __result__: null };
-    const script = new vm.Script(wrappedScript);
-    const context = vm.createContext(sandbox);
-    script.runInContext(context);
-
-    if (sandbox.__result__ && typeof sandbox.__result__ === 'object') {
-      listsCache = sandbox.__result__;
+    if (response.data && typeof response.data === 'object') {
+      listsCache = response.data;
       listsCacheTime = now;
-      console.log(`Parsed lists.js: ${Object.keys(sandbox.__result__).length} categories found`);
-      return sandbox.__result__;
+      console.log(`Fetched MTV playlists: ${Object.keys(response.data).length} categories found`);
+      return response.data;
     }
 
-    console.error('lists.js does not export a valid list object');
+    console.error('Invalid response format from MTV playlists URL');
     return null;
   } catch (error) {
-    console.error('Error parsing lists.js:', error.message);
+    console.error('Error fetching MTV playlists:', error.message);
     return null;
   }
 }
 
 // Get all list categories with counts
-app.get('/api/admin/lists', adminAuthMiddleware, (req, res) => {
-  const lists = parseListsFile();
+app.get('/api/admin/lists', adminAuthMiddleware, async (req, res) => {
+  const lists = await fetchMTVPlaylists();
 
   if (!lists) {
-    return res.status(500).json({ error: 'Failed to parse lists.js' });
+    return res.status(500).json({ error: 'Failed to fetch MTV playlists' });
   }
 
   const categories = Object.keys(lists).map(name => ({
@@ -2154,15 +2142,15 @@ app.get('/api/admin/lists', adminAuthMiddleware, (req, res) => {
 });
 
 // Get paginated videos from a specific category
-app.get('/api/admin/lists/:category', adminAuthMiddleware, (req, res) => {
+app.get('/api/admin/lists/:category', adminAuthMiddleware, async (req, res) => {
   const { category } = req.params;
   const page = Math.max(1, parseInt(req.query.page) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize) || 50));
 
-  const lists = parseListsFile();
+  const lists = await fetchMTVPlaylists();
 
   if (!lists) {
-    return res.status(500).json({ error: 'Failed to parse lists.js' });
+    return res.status(500).json({ error: 'Failed to fetch MTV playlists' });
   }
 
   if (!lists[category]) {
