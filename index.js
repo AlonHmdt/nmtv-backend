@@ -230,7 +230,7 @@ const CHANNELS = {
 };
 
 const SPECIAL_EVENT_CONFIG = {
-  enabled: true,
+  enabled: false,
   id: 'grammy_awards_winners_and_performances',
   label: 'GRAMMY AWARDS',
   icon1: '🎶',
