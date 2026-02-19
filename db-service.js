@@ -105,6 +105,16 @@ function clearCache(pattern = null) {
   }
 }
 
+// Fisher-Yates shuffle algorithm for unbiased randomization
+function shuffle(arr) {
+  const shuffled = [...arr];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
 // ============================================
 // CHANNEL FUNCTIONS
 // ============================================
@@ -433,7 +443,7 @@ async function getRandomBumpers(count = 1) {
   }
 
   // Shuffle and return requested count
-  const shuffled = [...bumpers].sort(() => Math.random() - 0.5);
+  const shuffled = shuffle(bumpers);
   return shuffled.slice(0, count).map(b => ({
     id: b.id,
     title: b.title,

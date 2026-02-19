@@ -763,7 +763,7 @@ function insertBumpersIntoBlock(videos, interval) {
   }
 
   const result = [];
-  const shuffledBumpers = [...bumpersCache].sort(() => Math.random() - 0.5);
+  const shuffledBumpers = shuffle([...bumpersCache]);
   let bumperIndex = 0;
 
   // Special pattern for shows channel: [v1, BUMPER, v2, v3, BUMPER]
