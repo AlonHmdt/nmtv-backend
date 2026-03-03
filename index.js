@@ -233,7 +233,7 @@ const SPECIAL_EVENT_CONFIG = {
   enabled: true,
   id: 'international_womens_day',
   label: "International Women's Day",
-  icon1: '♀️',
+  icon1: '👸🏼',
   icon2: '👸🏼',
   playlists: [
     { id: "PLplXQ2cg9B_piMcxFmVLfqRQPUDH2feqR", label: "Female Pop Rock of 1990s-2000s" },
