@@ -230,14 +230,17 @@ const CHANNELS = {
 };
 
 const SPECIAL_EVENT_CONFIG = {
-  enabled: false,
-  id: 'grammy_awards_winners_and_performances',
-  label: 'GRAMMY AWARDS',
-  icon1: '🎶',
-  icon2: '🏆',
+  enabled: true,
+  id: 'international_womens_day',
+  label: "International Women's Day",
+  icon1: '♀️',
+  icon2: '👸🏼',
   playlists: [
-    { id: "PLEFin5ZtEWUoGIJwyvx4MNh8updDLrVd_", label: "Grammy Awards Performances" },
-    { id: "PLIMFlL12VNnpRbBV2wbWkGlgjLTw_33AM", label: "Grammy Awards Winners" },
+    { id: "PLplXQ2cg9B_piMcxFmVLfqRQPUDH2feqR", label: "Female Pop Rock of 1990s-2000s" },
+    { id: "PLrtrE2400RYY2DQ_IQPJuHq_myV_Eq4wa", label: "80's Female Icons" },
+    { id: "PLkqz3S84Tw-RWyqTpT0o1te-XVYv-6SXg", label: "Future Icons" },
+    { id: "PLkqz3S84Tw-TeloAsz60jemjOR1axg-mF", label: "UK Women Represent" },
+    { id: "PLkqz3S84Tw-SlaHU__UKtixAjYqbXpeZ3", label: "I ❤️ Rock&Roll" },
   ]
 };
 
