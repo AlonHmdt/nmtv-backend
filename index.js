@@ -263,6 +263,86 @@ function cleanTitle(title) {
   return cleaned.trim();
 }
 
+// Strip common YouTube noise from a song title before sending to search APIs
+function cleanSongForSearch(str) {
+  return str
+    .replace(/\s*[\(\[\{][^\)\]\}]*(official|lyric|audio|video|remaster|live|explicit|HD|HQ|4K|VEVO|visuali)[^\)\]\}]*[\)\]\}]/gi, '')
+    .replace(/\s*(ft\.|feat\.)\s+[^()\[\]]+/gi, '')
+    .trim();
+}
+
+// Try MusicBrainz with a specific recording+artist query, returns year or null
+async function queryMusicBrainz(recording, artist) {
+  const query = `recording:"${cleanSongForSearch(recording)}" AND artist:"${cleanSongForSearch(artist)}"`;
+  const url = `https://musicbrainz.org/ws/2/recording/?query=${encodeURIComponent(query)}&fmt=json&limit=3`;
+
+  const response = await axios.get(url, {
+    headers: { 'User-Agent': 'NMTV/1.0 (nmtv.online)' },
+    timeout: 8000
+  });
+
+  if (response.data?.recordings?.length > 0) {
+    const dateStr = response.data.recordings[0]['first-release-date'];
+    if (dateStr) {
+      const year = parseInt(dateStr.substring(0, 4), 10);
+      if (!isNaN(year) && year > 1900) return year;
+    }
+  }
+  return null;
+}
+
+// Fetch year from IMVDb, then MusicBrainz fallback (tries both artist/song orderings)
+async function fetchVideoYear(title, artist, song) {
+  // Try IMVDb first
+  if (IMVDB_API_KEY) {
+    try {
+      const cleanedSong = song ? cleanSongForSearch(song) : null;
+      const searchQuery = artist && cleanedSong ? `${artist} ${cleanedSong}` : title;
+      const url = `http://imvdb.com/api/v1/search/videos?q=${encodeURIComponent(searchQuery)}&limit=3`;
+
+      const response = await axios.get(url, {
+        headers: { 'IMVDB-APP-KEY': IMVDB_API_KEY },
+        timeout: 5000
+      });
+
+      if (response.data?.results?.length > 0) {
+        const results = response.data.results;
+        let match = null;
+
+        // Prefer result whose artist name matches either part (order may be swapped)
+        if (artist && song) {
+          const a = artist.toLowerCase();
+          const s = song.toLowerCase();
+          match = results.find(v =>
+            v.artists?.some(vArtist => {
+              const name = (vArtist.name || '').toLowerCase();
+              return name.includes(a) || a.includes(name) || name.includes(s) || s.includes(name);
+            })
+          );
+        }
+        match = match || results[0];
+
+        if (match?.year) return match.year;
+      }
+    } catch (err) {
+      // IMVDb failed, fall through to MusicBrainz
+    }
+  }
+
+  // Fallback: MusicBrainz — YouTube title order may be "Artist - Song" or "Song - Artist",
+  // so try both orderings and take whichever returns a result first
+  if (artist && song) {
+    try {
+      const year = await queryMusicBrainz(song, artist) || await queryMusicBrainz(artist, song);
+      if (year) return year;
+    } catch (err) {
+      // MusicBrainz failed
+    }
+  }
+
+  return null;
+}
+
 function shuffle(arr) {
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -1616,51 +1696,26 @@ async function preFetchAllPlaylists() {
 
 // IMVDb API endpoint to get video release year
 app.get('/api/video/year', async (req, res) => {
-  const { title, videoId } = req.query;
+  const { title, videoId, artist, song } = req.query;
 
-  if (!title) {
+  if (!title && !(artist && song)) {
     return res.status(400).json({ error: 'Title parameter is required' });
   }
 
-  if (!IMVDB_API_KEY) {
-    console.error('IMVDB_API_KEY not set');
-    return res.json({ year: null });
-  }
-
   try {
-    const encodedTitle = encodeURIComponent(title);
-    const url = `http://imvdb.com/api/v1/search/videos?q=${encodedTitle}&limit=1`;
+    const year = await fetchVideoYear(title || `${artist} ${song}`, artist, song);
 
-    const response = await axios.get(url, {
-      headers: {
-        'IMVDB-APP-KEY': IMVDB_API_KEY
-      },
-      timeout: 5000
-    });
-
-    if (response.data && response.data.results && response.data.results.length > 0) {
-      const video = response.data.results[0];
-      const year = video.year;
-
-      if (year) {
-        // Store year in database if videoId provided and DB mode enabled
-        if (videoId && USE_DATABASE) {
-          try {
-            await dbService.updateVideoYear(videoId, year);
-          } catch (dbError) {
-          }
-        }
-
-        return res.json({ year });
+    if (year) {
+      // Respond immediately, persist to DB in background
+      res.json({ year });
+      if (videoId && USE_DATABASE) {
+        dbService.updateVideoYear(videoId, year).catch(() => {});
       }
+      return;
     }
 
-    console.log(`  ✗ No year found for "${title}"`);
     return res.json({ year: null });
-
   } catch (error) {
-    console.error('Error fetching from IMVDb:', error.message);
-    // Return null instead of error to gracefully handle failures
     return res.json({ year: null });
   }
 });
@@ -2011,63 +2066,33 @@ app.delete('/api/admin/bumper/:videoId', adminAuthMiddleware, async (req, res) =
   }
 });
 
-// Fetch video year from IMVDb (Admin)
+// Fetch video year from IMVDb + MusicBrainz fallback (Admin)
 app.post('/api/admin/fetch-year', adminAuthMiddleware, async (req, res) => {
-  const { title, videoId } = req.body;
+  const { title, videoId, artist, song } = req.body;
 
-  console.log(`🔍 [Admin] Fetching year for title: "${title}" (Video ID: ${videoId})`);
+  console.log(`🔍 [Admin] Fetching year for: "${title || `${artist} - ${song}`}" (Video ID: ${videoId})`);
 
-  if (!title) {
+  if (!title && !(artist && song)) {
     return res.status(400).json({ error: 'Title is required' });
   }
 
-  // Use existing logic logic from GET /api/video/year but as a POST for admin usage
-  if (!IMVDB_API_KEY) {
-    console.error('❌ IMVDB_API_KEY is missing!');
-    return res.json({ year: null, error: 'IMVDB_API_KEY not set' });
-  }
-
   try {
-    const encodedTitle = encodeURIComponent(title);
-    const url = `http://imvdb.com/api/v1/search/videos?q=${encodedTitle}&limit=1`;
+    const year = await fetchVideoYear(title || `${artist} ${song}`, artist, song);
 
-    console.log(`   Asking IMVDb: ${url}`);
-
-    const response = await axios.get(url, {
-      headers: {
-        'IMVDB-APP-KEY': IMVDB_API_KEY
-      },
-      timeout: 5000
-    });
-
-    if (response.data && response.data.results) {
-      console.log(`   IMVDb Response Hits: ${response.data.results.length}`);
-      if (response.data.results.length > 0) {
-        const video = response.data.results[0];
-        console.log(`   Top Match: "${video.song_title}" by ${video.artists[0]?.name} (${video.year})`);
-
-        const year = video.year;
-
-        if (year) {
-          // Update database if video ID is provided
-          if (videoId && USE_DATABASE) {
-            try {
-              // Depending on how dbService is structured, we might need to check if video exists first
-              // But existing code just calls updateVideoYear
-              await dbService.updateVideoYear(videoId, year);
-              console.log(`   Updated DB for ${videoId} with year ${year}`);
-            } catch (e) {
-              console.error(`   Failed to update year in DB for ${videoId}:`, e.message);
-            }
-          }
-          return res.json({ year });
+    if (year) {
+      console.log(`   ✓ Year found: ${year}`);
+      if (videoId && USE_DATABASE) {
+        try {
+          await dbService.updateVideoYear(videoId, year);
+          console.log(`   Updated DB for ${videoId} with year ${year}`);
+        } catch (e) {
+          console.error(`   Failed to update year in DB for ${videoId}:`, e.message);
         }
       }
-    } else {
-      console.log('   Invalid IMVDb response structure');
+      return res.json({ year });
     }
 
-    console.log('   No year found.');
+    console.log('   No year found from any source.');
     return res.json({ year: null });
   } catch (error) {
     console.error('Error fetching year:', error.message);
