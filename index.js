@@ -231,16 +231,15 @@ const CHANNELS = {
 
 const SPECIAL_EVENT_CONFIG = {
   enabled: true,
-  id: 'international_womens_day',
-  label: "International Women's Day",
-  icon1: '👸🏼',
-  icon2: '👸🏼',
+  id: 'academy_awards',
+  label: "Academy Awards",
+  icon1: '🏆',
+  icon2: '🎬',
   playlists: [
-    { id: "PLplXQ2cg9B_piMcxFmVLfqRQPUDH2feqR", label: "Female Pop Rock of 1990s-2000s" },
-    { id: "PLrtrE2400RYY2DQ_IQPJuHq_myV_Eq4wa", label: "80's Female Icons" },
-    { id: "PLkqz3S84Tw-RWyqTpT0o1te-XVYv-6SXg", label: "Future Icons" },
-    { id: "PLkqz3S84Tw-TeloAsz60jemjOR1axg-mF", label: "UK Women Represent" },
-    { id: "PLkqz3S84Tw-SlaHU__UKtixAjYqbXpeZ3", label: "I ❤️ Rock&Roll" },
+    { id: "PLc0TsotySclbeSr3_--_qVqphIfWQCgpn", label: "Best Oscar Performances" },
+    { id: "PLtMJF5iI4w_RnTohhNAkQCgb0VNDXdsDV", label: "80's Movie Music Videos" },
+    { id: "PLnwMRsLoCEVSgwvl3Fa5CILcEPJu_6uld", label: "Animated Movies Hits" },
+    { id: "PL9OVBYPoHprww8C4NN7lh9wjsjApcGiwx", label: "90's Movie Music Videos" },
   ]
 };
 
