@@ -230,7 +230,7 @@ const CHANNELS = {
 };
 
 const SPECIAL_EVENT_CONFIG = {
-  enabled: true,
+  enabled: false,
   id: 'academy_awards',
   label: "Academy Awards",
   icon1: '🏆',
