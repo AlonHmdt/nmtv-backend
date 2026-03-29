@@ -755,6 +755,223 @@ async function createPlaylist(name, description, channelId) {
 
 
 // ============================================
+// SPECIAL EVENT FUNCTIONS
+// ============================================
+
+/**
+ * Get the currently active special event (enabled + within date range).
+ * Returns the full config shape the frontend expects, or null if none active.
+ */
+async function getActiveSpecialEvent() {
+  const cacheKey = 'special_event:active';
+  const cached = getCached(cacheKey);
+  if (cached !== null) return cached;
+
+  const client = getPool();
+
+  // Compare only month and day so events recur every year.
+  // We use (month * 100 + day) as a sortable "day-of-year" number (e.g., March 5 = 305, Dec 20 = 1220).
+  // For ranges that wrap around year-end (e.g., Dec 20 → Jan 5), we use OR logic.
+  const now = new Date();
+  const todayMD = (now.getMonth() + 1) * 100 + now.getDate();
+
+  const eventResult = await client.query(`
+    SELECT id, label, icon1, icon2, is_enabled, start_date, end_date
+    FROM special_events
+    WHERE is_enabled = TRUE
+      AND (
+        start_date IS NULL OR end_date IS NULL
+        OR (
+          -- Normal range (start <= end within same year, e.g., Mar 1 → Mar 31)
+          CASE WHEN (EXTRACT(MONTH FROM start_date) * 100 + EXTRACT(DAY FROM start_date))
+                 <= (EXTRACT(MONTH FROM end_date) * 100 + EXTRACT(DAY FROM end_date))
+          THEN
+            $1 >= (EXTRACT(MONTH FROM start_date) * 100 + EXTRACT(DAY FROM start_date))
+            AND $1 <= (EXTRACT(MONTH FROM end_date) * 100 + EXTRACT(DAY FROM end_date))
+          -- Wraparound range (start > end, e.g., Dec 20 → Jan 5)
+          ELSE
+            $1 >= (EXTRACT(MONTH FROM start_date) * 100 + EXTRACT(DAY FROM start_date))
+            OR $1 <= (EXTRACT(MONTH FROM end_date) * 100 + EXTRACT(DAY FROM end_date))
+          END
+        )
+      )
+    ORDER BY start_date DESC NULLS LAST
+    LIMIT 1
+  `, [todayMD]);
+
+  if (eventResult.rows.length === 0) {
+    // Cache the "no event" result for 5 minutes so we don't query constantly
+    setCached(cacheKey, null, 5 * 60 * 1000);
+    return null;
+  }
+
+  const event = eventResult.rows[0];
+
+  // Fetch associated playlists
+  const playlistsResult = await client.query(`
+    SELECT youtube_playlist_id, label
+    FROM special_event_playlists
+    WHERE special_event_id = $1
+    ORDER BY position
+  `, [event.id]);
+
+  const result = {
+    enabled: true,
+    id: event.id,
+    label: event.label,
+    icon1: event.icon1,
+    icon2: event.icon2,
+    startDate: event.start_date,
+    endDate: event.end_date,
+    playlists: playlistsResult.rows.map(r => ({
+      id: r.youtube_playlist_id,
+      label: r.label || ''
+    }))
+  };
+
+  // Cache for 5 minutes
+  setCached(cacheKey, result, 5 * 60 * 1000);
+  return result;
+}
+
+/**
+ * Get all special events (for admin listing).
+ */
+async function getAllSpecialEvents() {
+  const client = getPool();
+
+  const eventsResult = await client.query(`
+    SELECT id, label, icon1, icon2, is_enabled, start_date, end_date, created_at, updated_at
+    FROM special_events
+    ORDER BY created_at DESC
+  `);
+
+  // For each event, fetch its playlists
+  const events = [];
+  for (const event of eventsResult.rows) {
+    const playlistsResult = await client.query(`
+      SELECT youtube_playlist_id, label, position
+      FROM special_event_playlists
+      WHERE special_event_id = $1
+      ORDER BY position
+    `, [event.id]);
+
+    events.push({
+      id: event.id,
+      label: event.label,
+      icon1: event.icon1,
+      icon2: event.icon2,
+      isEnabled: event.is_enabled,
+      startDate: event.start_date,
+      endDate: event.end_date,
+      createdAt: event.created_at,
+      updatedAt: event.updated_at,
+      playlists: playlistsResult.rows.map(r => ({
+        id: r.youtube_playlist_id,
+        label: r.label || '',
+        position: r.position
+      }))
+    });
+  }
+
+  return events;
+}
+
+/**
+ * Create a new special event. Returns the created event with its generated id.
+ */
+async function createSpecialEvent({ label, icon1, icon2, isEnabled, startDate, endDate, playlists }) {
+  const client = getPool();
+
+  try {
+    await client.query('BEGIN');
+
+    const eventResult = await client.query(`
+      INSERT INTO special_events (label, icon1, icon2, is_enabled, start_date, end_date, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      RETURNING id
+    `, [label, icon1 || '⭐', icon2 || '⭐', isEnabled ?? false, startDate || null, endDate || null]);
+
+    const id = eventResult.rows[0].id;
+
+    if (playlists && playlists.length > 0) {
+      for (let i = 0; i < playlists.length; i++) {
+        await client.query(`
+          INSERT INTO special_event_playlists (special_event_id, youtube_playlist_id, label, position)
+          VALUES ($1, $2, $3, $4)
+        `, [id, playlists[i].id, playlists[i].label || '', i]);
+      }
+    }
+
+    await client.query('COMMIT');
+    clearCache('special_event');
+
+    return { id, label, icon1, icon2, isEnabled, startDate, endDate, playlists };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+}
+
+/**
+ * Update an existing special event by numeric id.
+ */
+async function updateSpecialEvent(id, { label, icon1, icon2, isEnabled, startDate, endDate, playlists }) {
+  const client = getPool();
+
+  try {
+    await client.query('BEGIN');
+
+    const result = await client.query(`
+      UPDATE special_events
+      SET label = $2, icon1 = $3, icon2 = $4, is_enabled = $5,
+          start_date = $6, end_date = $7, updated_at = NOW()
+      WHERE id = $1
+      RETURNING id
+    `, [id, label, icon1 || '⭐', icon2 || '⭐', isEnabled ?? false, startDate || null, endDate || null]);
+
+    if (result.rows.length === 0) {
+      throw new Error(`Special event not found: ${id}`);
+    }
+
+    // Replace playlists
+    await client.query('DELETE FROM special_event_playlists WHERE special_event_id = $1', [id]);
+
+    if (playlists && playlists.length > 0) {
+      for (let i = 0; i < playlists.length; i++) {
+        await client.query(`
+          INSERT INTO special_event_playlists (special_event_id, youtube_playlist_id, label, position)
+          VALUES ($1, $2, $3, $4)
+        `, [id, playlists[i].id, playlists[i].label || '', i]);
+      }
+    }
+
+    await client.query('COMMIT');
+    clearCache('special_event');
+
+    return { id, label, icon1, icon2, isEnabled, startDate, endDate, playlists };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  }
+}
+
+/**
+ * Delete a special event by ID.
+ */
+async function deleteSpecialEvent(eventId) {
+  const client = getPool();
+  const result = await client.query('DELETE FROM special_events WHERE id = $1 RETURNING id', [eventId]);
+
+  if (result.rows.length === 0) {
+    throw new Error(`Special event not found: ${eventId}`);
+  }
+
+  clearCache('special_event');
+  return { deleted: true, id: eventId };
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
@@ -799,5 +1016,12 @@ module.exports = {
   addVideoToPlaylist,
   removeVideoFromPlaylist,
   checkVideosExistence,
-  createPlaylist
+  createPlaylist,
+
+  // Special Events
+  getActiveSpecialEvent,
+  getAllSpecialEvents,
+  createSpecialEvent,
+  updateSpecialEvent,
+  deleteSpecialEvent
 };

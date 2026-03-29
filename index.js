@@ -229,19 +229,8 @@ const CHANNELS = {
   "random": [] // Random channel - pulls from all music channels
 };
 
-const SPECIAL_EVENT_CONFIG = {
-  enabled: false,
-  id: 'academy_awards',
-  label: "Academy Awards",
-  icon1: '🏆',
-  icon2: '🎬',
-  playlists: [
-    { id: "PLc0TsotySclbeSr3_--_qVqphIfWQCgpn", label: "Best Oscar Performances" },
-    { id: "PLtMJF5iI4w_RnTohhNAkQCgb0VNDXdsDV", label: "80's Movie Music Videos" },
-    { id: "PLnwMRsLoCEVSgwvl3Fa5CILcEPJu_6uld", label: "Animated Movies Hits" },
-    { id: "PL9OVBYPoHprww8C4NN7lh9wjsjApcGiwx", label: "90's Movie Music Videos" },
-  ]
-};
+// Special event config is now loaded from the database.
+// Use getSpecialEventConfig() to get the current active event.
 
 // Bumper playlists - short videos to play between songs
 const BUMPER_PLAYLISTS = [
@@ -965,12 +954,16 @@ async function getChannelBlock(channel, customPlaylistIds = [], excludePlaylistI
 
 // Special handler for SPECIAL channel
 async function getSpecialChannelBlock() {
-  if (!SPECIAL_EVENT_CONFIG.enabled || !SPECIAL_EVENT_CONFIG.playlists.length) {
+  const specialConfig = USE_DATABASE
+    ? await dbService.getActiveSpecialEvent()
+    : null;
+
+  if (!specialConfig || !specialConfig.playlists || !specialConfig.playlists.length) {
     throw new Error('Special channel is not active');
   }
 
-  // Pick a random playlist from the config
-  const playlist = SPECIAL_EVENT_CONFIG.playlists[Math.floor(Math.random() * SPECIAL_EVENT_CONFIG.playlists.length)];
+  // Pick a random playlist from the DB config
+  const playlist = specialConfig.playlists[Math.floor(Math.random() * specialConfig.playlists.length)];
 
   // Fetch videos from YouTube API (special channel always uses YouTube API for videos)
   let allVideos = await getPlaylistVideos(playlist.id, null, null, 'special');
@@ -1504,7 +1497,7 @@ app.get('/api/ready', async (req, res) => {
         bumpersCount: 0,
         loadingTime: 0,
         noaChannelReady: true,
-        specialEvent: SPECIAL_EVENT_CONFIG
+        specialEvent: await dbService.getActiveSpecialEvent() || { enabled: false }
       });
     } catch (error) {
       return res.json({
@@ -1537,7 +1530,7 @@ app.get('/api/ready', async (req, res) => {
     bumpersCount: bumpersCache?.length || 0,
     loadingTime: dataLoadingStartTime ? Date.now() - dataLoadingStartTime : 0,
     noaChannelReady: isNoaChannelReady,
-    specialEvent: SPECIAL_EVENT_CONFIG
+    specialEvent: { enabled: false }
   });
 });
 
@@ -2296,6 +2289,98 @@ app.get('/api/admin/youtube-playlist/:playlistId', adminAuthMiddleware, async (r
     }
     
     res.status(500).json({ error: 'Failed to fetch playlist' });
+  }
+});
+
+// ============================================
+// ADMIN: SPECIAL EVENTS
+// ============================================
+
+// GET all special events
+app.get('/api/admin/special-events', adminAuthMiddleware, async (req, res) => {
+  try {
+    const events = await dbService.getAllSpecialEvents();
+    res.json(events);
+  } catch (error) {
+    console.error('Error fetching special events:', error.message);
+    res.status(500).json({ error: 'Failed to fetch special events' });
+  }
+});
+
+// GET active special event (public — used by frontend ready check)
+app.get('/api/special-event', async (req, res) => {
+  try {
+    const event = await dbService.getActiveSpecialEvent();
+    res.json(event || { enabled: false });
+  } catch (error) {
+    console.error('Error fetching active special event:', error.message);
+    res.json({ enabled: false });
+  }
+});
+
+// CREATE a new special event
+app.post('/api/admin/special-events', adminAuthMiddleware, async (req, res) => {
+  try {
+    const { label, icon1, icon2, isEnabled, startDate, endDate, playlists } = req.body;
+
+    if (!label) {
+      return res.status(400).json({ error: 'label is required' });
+    }
+
+    const result = await dbService.createSpecialEvent({
+      label, icon1, icon2, isEnabled, startDate, endDate, playlists
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error creating special event:', error.message);
+    res.status(500).json({ error: 'Failed to create special event' });
+  }
+});
+
+// UPDATE an existing special event
+app.put('/api/admin/special-events/:eventId', adminAuthMiddleware, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'eventId must be a number' });
+    }
+
+    const { label, icon1, icon2, isEnabled, startDate, endDate, playlists } = req.body;
+
+    if (!label) {
+      return res.status(400).json({ error: 'label is required' });
+    }
+
+    const result = await dbService.updateSpecialEvent(eventId, {
+      label, icon1, icon2, isEnabled, startDate, endDate, playlists
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error updating special event:', error.message);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to update special event' });
+  }
+});
+
+// DELETE a special event
+app.delete('/api/admin/special-events/:eventId', adminAuthMiddleware, async (req, res) => {
+  try {
+    const eventId = parseInt(req.params.eventId, 10);
+    if (isNaN(eventId)) {
+      return res.status(400).json({ error: 'eventId must be a number' });
+    }
+    const result = await dbService.deleteSpecialEvent(eventId);
+    res.json(result);
+  } catch (error) {
+    console.error('Error deleting special event:', error.message);
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    res.status(500).json({ error: 'Failed to delete special event' });
   }
 });
 

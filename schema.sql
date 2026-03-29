@@ -89,6 +89,37 @@ CREATE INDEX idx_channel_playlists_channel ON channel_playlists(channel_id);
 CREATE INDEX idx_channel_playlists_playlist ON channel_playlists(playlist_id);
 
 -- ============================================
+-- 7. SPECIAL EVENTS TABLE
+-- ============================================
+CREATE TABLE special_events (
+  id SERIAL PRIMARY KEY,
+  label VARCHAR(255) NOT NULL,           -- e.g., 'Academy Awards'
+  icon1 VARCHAR(10) NOT NULL DEFAULT '⭐', -- First emoji icon
+  icon2 VARCHAR(10) NOT NULL DEFAULT '⭐', -- Second emoji icon
+  is_enabled BOOLEAN DEFAULT FALSE,
+  start_date TIMESTAMP,                  -- When the event goes live (nullable = always)
+  end_date TIMESTAMP,                    -- When the event ends (nullable = no end)
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ============================================
+-- 8. SPECIAL EVENT PLAYLISTS (junction table)
+-- ============================================
+CREATE TABLE special_event_playlists (
+  special_event_id INTEGER REFERENCES special_events(id) ON DELETE CASCADE,
+  youtube_playlist_id VARCHAR(100) NOT NULL,  -- YouTube playlist ID
+  label VARCHAR(255),                          -- Optional label for the playlist
+  position INTEGER DEFAULT 0,                  -- Ordering
+  created_at TIMESTAMP DEFAULT NOW(),
+  PRIMARY KEY (special_event_id, youtube_playlist_id)
+);
+
+CREATE INDEX idx_special_events_enabled ON special_events(is_enabled);
+CREATE INDEX idx_special_events_dates ON special_events(start_date, end_date);
+CREATE INDEX idx_special_event_playlists_event ON special_event_playlists(special_event_id);
+
+-- ============================================
 -- SEED DATA: Insert channels
 -- ============================================
 INSERT INTO channels (id, name, icon, is_easter_egg) VALUES
