@@ -7,6 +7,7 @@
 
 const { Pool } = require('pg');
 require('dotenv').config();
+const { getDbSslConfig } = require('./db-ssl');
 
 // ============================================
 // CONNECTION POOL (Singleton)
@@ -21,7 +22,7 @@ function initializePool() {
 
   pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: getDbSslConfig(),
     max: 20, // Maximum pool size
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,

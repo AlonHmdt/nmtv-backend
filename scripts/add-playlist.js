@@ -19,6 +19,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const axios = require('axios');
 const { Pool } = require('pg');
+const { getDbSslConfig } = require('../db-ssl');
 
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -40,7 +41,7 @@ const args = process.argv.slice(2);
 async function showAvailableChannels() {
   const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: DATABASE_URL.includes('supabase') ? { rejectUnauthorized: false } : false
+    ssl: DATABASE_URL.includes('supabase') ? getDbSslConfig() : false
   });
   
   try {
@@ -360,7 +361,7 @@ async function linkPlaylistToChannels(client, playlistId, channelIds) {
 async function main() {
   const pool = new Pool({
     connectionString: DATABASE_URL,
-    ssl: DATABASE_URL.includes('supabase') ? { rejectUnauthorized: false } : false
+    ssl: DATABASE_URL.includes('supabase') ? getDbSslConfig() : false
   });
   
   try {

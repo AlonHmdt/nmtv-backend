@@ -10,6 +10,7 @@
 
 const axios = require('axios');
 const { Client } = require('pg');
+const { getDbSslConfig } = require('../db-ssl');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -219,7 +220,7 @@ async function getVideoDurations(videoIds) {
 async function initDatabase() {
   const client = new Client({
     connectionString: process.env.DATABASE_URL,
-    ssl: { rejectUnauthorized: false },
+    ssl: getDbSslConfig(),
     connectionTimeoutMillis: 15000
   });
 
